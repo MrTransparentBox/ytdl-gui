@@ -1,13 +1,15 @@
 #!/usr/bin/env D:\propertyofalexjohnson\vscode\python\YTDL\.venv\Scripts\python.exe
 import os, json, sys, threading, argparse, psutil
+from youtube_dl import YoutubeDL
 from ttkthemes import ThemedTk
 from tkinter import messagebox, filedialog, ttk, font 
 from tkinter import *
 # TO-DO<---
-#    ADD INNO COMPILE TO BUILD TASK (CTRL+SHIFT+B) THROUGH 'ISCC.exe' (INNO SETUP COMMAND COMPILER - C:\Program Files (x86)\Inno Setup 6) AND "D:\PropertyOfAlexJohnson\VSCode\Setup\YTDLGUI\VDLS-21.4.24.f3.iss"
+#    ADD INNO COMPILE TO BUILD TASK (CTRL+SHIFT+B) THROUGH 'ISCC.exe' (INNO SETUP COMMAND COMPILER - C:\Program Files (x86)\Inno Setup 6) AND "..\..\Setup\YTDLGUI\VDLS-21.4.24.f3.iss"
 #    UPLOAD TO GITHUB (https://github.com/MrTransparentBox/ytdl-gui) AND CREATE AN UPDATER FUNCTION.
+#    ADD SPOTIFY SUPPORT FROM MY SOUNDDL PROGRAM
 #    MAKE SMALLER BY JUST USING IMAGIO_FFMPEG/BINARIES RATHER THAN INDEPENTENT INSTALL.
-#    ADD MORE DOWNLOAD OPTIONS (INCLUDING ADVANCED OPTIONS TAB WITH TTK.NOTEBOOK)
+#    ADD MORE DOWNLOAD OPTIONS, E.G. AUDIO-ONLY (INCLUDING ADVANCED OPTIONS TAB WITH TTK.NOTEBOOK)
 #    CHECK FOR BUGS
 class Font_wm(Toplevel):
     def __init__(self, Font=None):
@@ -189,14 +191,14 @@ class GetStats():
         return {"hours": hours, "minutes": minutes, "seconds": seconds}
 
 class Application(ThemedTk):
-    """Base application window and functions for the Downloader GUI
+    """Base application window and functions for the Youtube-dl GUI
 
     Parametres
     ------
         - `title`: str - The title of the window
         - `size`: str - Form of "``x_size``x``y_size``"
         - `debug`: bool - Whether to put the app in debug mode. Prints additional info.
-        - `path`: str - `os.path` like string determining the path of the `.vdl` or other file to open. Leave as ```None``` for default `ToDownload.bat` file
+        - `path`: str - `os.path` like string determining the path of the `.ytdl` or other file to open. Leave as ```None``` for default `ToDownload.ytdl` file
     """
     def __init__(self, title, size, debug=False, path=None):
         print("Loading preferences and settings...")
@@ -204,9 +206,13 @@ class Application(ThemedTk):
         self.running=False
         self.debug=debug
         self.path=path
+
         self.exe = bool(getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"))
         if self.path == None:
-            self.path = self.relative_path("ToDownload.bat")
+            self.path = self.relative_path("ToDownload.ytdl")
+        elif not (os.path.exists(self.path) and os.path.isfile(self.path) and (str(self.path).endswith(".ytdl") or str(self.path).endswith(".vdl"))):
+            raise OSError("File specified must be an existing file of type .ytdl (or .vdl for legacy files)")
+
         with open(self.path, "r") as f:
             if self.debug: print(f"File is {self.path}  ||  Encoding is {f.encoding}")
             f.close()
@@ -295,8 +301,8 @@ class Application(ThemedTk):
         self.viewMenu.add_command(label="Font...", command=self.font)
 
         self.toolMenu=Menu(self.menu, tearoff=0)
-        self.toolMenu.add_command(label="Current Directory", command=self.currDir)
         self.toolMenu.add_command(label="Current File", command=self.currFile)
+        self.toolMenu.add_command(label="Current Directory", command=self.currDir)
         self.toolMenu.add_command(label="Change Directory...", command=self.cDir)
         self.toolMenu.add_separator()
         self.toolMenu.add_command(label="Duration Scan...", command=self.time)
@@ -305,7 +311,8 @@ class Application(ThemedTk):
         self.stats=None
 
         self.helpMenu=Menu(self.menu, tearoff=0)
-        self.helpMenu.add_cascade(label="About...", command=self.about)
+        self.helpMenu.add_command(label="About...", command=self.about)
+        self.helpMenu.add_command(label="Report Bug", command=self.bug)
 
         self.menu.add_cascade(label="File", menu=self.fileMenu)
         self.menu.add_cascade(label="View", menu=self.viewMenu)
@@ -317,6 +324,7 @@ class Application(ThemedTk):
         self.bind_all("<Control-s>", self.save)
         self.mainText.bind("<<Modified>>", self.modified)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
     def relative_path(self, path: str):
         try:
             base = sys._MEIPASS
@@ -332,6 +340,11 @@ class Application(ThemedTk):
         text.config(state=NORMAL)
         text.insert(index, chars, args)
         text.config(state=DISABLED)
+    def new(self, event=None):
+        if self.ask_save() == "cancel": return
+        self.mainText.delete("1.0", END)
+        self.path=None
+        self.save()
     def ask_save(self):
         if not self.saved:
             sv = messagebox.askyesnocancel("Save Changes?", "Do you want to save your changes?", parent=self)
@@ -341,18 +354,17 @@ class Application(ThemedTk):
                 return "continue"
             elif sv == None:
                 return "cancel"
-
-    def new(self, event=None):
-        self.mainText.delete("1.0", END)
-        self.save()
     def save(self, event=None):
+        if self.path == None:
+            self.saveAs()
+            return
         with open(self.path, "w", encoding="utf-8") as f:
             f.write(self.mainText.get("1.0", END))
             f.close()
         self.saved=True
         self.title(self.title().replace("*", ""))
     def saveAs(self, event=None):
-        ans = filedialog.asksaveasfilename(parent=self)
+        ans = filedialog.asksaveasfilename(confirmoverwrite=True, defaultextension=".ytdl", initialfile="downloads.ytdl", filetypes=[("Youtube-dl File (*.ytdl)", "*.ytdl"), ("Legacy Downloader File (*.vdl)", "*.vdl")], title="Save As...", parent=self)
         if not ans: return
         self.path = os.path.abspath(ans)
         self.save()
@@ -362,12 +374,10 @@ class Application(ThemedTk):
         messagebox.showinfo("Current File", f"Current file is: {self.path}", parent=self)
     def cDir(self):
         ans = filedialog.askdirectory(parent=self)
-        if ans.strip() == "":
-            pass
-        else:
+        if ans.strip() != "":
             self.appConfig['dir'] = os.path.abspath(ans)
         self.writeConfig()
-        self.title(f"Downloader GUI - {str(self.appConfig['dir'])}")
+        self.title(f"Youtube-dl GUI - {str(self.appConfig['dir'])}")
     def time(self):
         if hasattr(self, "timeWindow"):
             self.timeWindow.deiconify()
@@ -380,6 +390,7 @@ class Application(ThemedTk):
             self.stats = GetStats(self.appConfig['dir'])
     def ytWin(self):
         if self.ask_save() == "cancel": return
+        if self.path == None: messagebox.showerror("No open file", "Must have an open .ytdl file before download", parent=self)
         if hasattr(self, "ytDownloadWin"):
             self.ytDownloadWin.deiconify()
             if self.ytDownloadWin.setGrab: self.ytDownloadWin.grab_set()
@@ -397,16 +408,6 @@ class Application(ThemedTk):
         messagebox.showinfo("Completed Duration Scan!", f"Total folder duration for {self.appConfig['dir']}:\n{l['hours']}hrs, {l['minutes']}mins, {l['seconds']}secs", parent=self.timeWindow)
     def ytDownload(self, toDisable: ttk.Button, run=1):
         toDisable.config(state=DISABLED)
-        self.ytDownloadWin.block=True
-        try:
-            from youtube_dl import YoutubeDL
-        except:
-            messagebox.showerror("Import Failure", "Couldn't import youtube_dl.\nCancelling download...", self.ytDownloadWin)
-            toDisable.config(state=NORMAL)
-            return
-        finally:
-            self.ytDownloadWin.block=False
-
         def progress_hook(d):
             if d['status'] == 'finished':
                 try:
@@ -444,9 +445,12 @@ class Application(ThemedTk):
         ytdl = YoutubeDL(opts)
         if self.debug: print(f"Parallel: {str(self.appConfig['prefs']['parallel'])}")
         lines=[]
-        with open(self.path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            f.close()
+        if self.path == None:
+            lines = self.mainText.get("1.0", END)
+        else:
+            with open(self.path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                f.close()
         lines = [i.replace("\n", "") for i in lines]
         for i in lines:
             if i.strip() == "" or i.strip().startswith("#"): lines.remove(i)
@@ -638,13 +642,13 @@ class Application(ThemedTk):
         def link(url):
             os.system(f"start {url}")
         self.aWin=Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
-        self.aWin.title("Downloader GUI - About")
+        self.aWin.title("Youtube-dl GUI - About")
         # self.aWin.geometry("300x175")
         self.aWin.iconbitmap(self.relative_path("Resources\\TransparentBox_1-1.ico"))
         self.aWin.mainFrm=ttk.Frame(self.aWin)
         self.aWin.mainFrm.pack(side=TOP, expand=YES, fill=BOTH)
 
-        verLbl=ttk.Label(self.aWin.mainFrm, text=f"Video Downloader GUI v{appVersion}", justify=LEFT, anchor=NW)
+        verLbl=ttk.Label(self.aWin.mainFrm, text=f"Youtube-dl GUI v{appVersion}", justify=LEFT, anchor=NW)
         verLbl.grid(column=0,row=0,sticky=NW,padx=10,pady=2, columnspan=2)
         undFnt = font.Font(verLbl, font=verLbl.cget("font"), underline=True, size=9)
 
@@ -663,6 +667,16 @@ class Application(ThemedTk):
         git2Lbl.bind("<Button-1>", lambda e: link("https://github.com/MrTransparentBox/ytdl-gui"))
         git2Lbl.grid(column=1,row=3,sticky=NW,padx=10,pady=2)
 
+    def bug(self):
+        ans=messagebox.askyesnocancel("Report via email?", "Would you like to report a bug by email.\nYes: report by email\nNo: report on github")
+        if ans==True:
+            os.system("start mailto:16JohnA28@gmail.com")
+            if self.debug: print("Email report.")
+        elif ans==False:
+            os.system("start https://github.com/MrTransparentBox/ytdl-gui/issues/new")
+            if self.debug: print("Github report.")
+        else:
+            if self.debug: print("Cancelled report.")
     def font(self):
         Font_wm(Font=self.currFont)
         self.fontToList()
@@ -857,21 +871,25 @@ class OutWin(Toplevel):
             print(f"mode '{self.mode}' incorrect")
             return
         self.t.start()
-appVersion = "2021.07.01.f2"
+appVersion = "2021.07.03.f1"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--debug", "--verbose", action="store_true", help="set program to debug mode for more info printed", dest="debug", default=False)
     parser.add_argument("-n", "--notes", action="store_true", help="show update notes and exit", default=False)
     parser.add_argument("-v", "--version", action="version", help="show version message and exit", version="%(prog)s v" + appVersion)
-    parser.add_argument("path" , nargs="?", help="path to a .vdl file containing a list of URLs for the editor", default=None)
+    parser.add_argument("path" , nargs="?", help="path to a .ytdl file containing a list of URLs for the editor", default=None)
     args = parser.parse_args()
     if args.notes:
-        notes = f"""Version: {appVersion}
+        notes = f"""Youtube-dl GUI v{appVersion}
 -- Added about section
--- Fixed infinite recurrance loading of .vdl files
+-- Changed .vdl association to .ytdl
+-- SaveAs when attempting to save new file
+-- Resets opened file when clicking new
+-- Uses mainText lines when no .ytdl file is open
 -- Only one instance of the program can run at once
 -- Time and download output windows are now persistant
--- other general optimisations"""
+-- Generally better input validation
+-- Other general optimisations"""
         print(notes)
         sys.exit(0)
     if args.path == None:
@@ -882,9 +900,9 @@ def main():
         p = os.path.abspath(args.path)
     if args.debug: print(sys.argv)
     if args.debug:
-        app = Application("Downloader GUI", "1080x600", True, p)
+        app = Application("Youtube-dl GUI", "1080x600", True, p)
     else:
-        app = Application("Downloader GUI", "1080x600", False, p)
+        app = Application("Youtube-dl GUI", "1080x600", False, p)
     app.focus_set()
     app.mainloop()
 
