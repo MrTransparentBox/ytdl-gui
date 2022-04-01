@@ -1,0 +1,9 @@
+wheel
+moviepy
+ttkthemes
+youtube-dl
+pyinstaller
+validators
+spotipy
+requests
+psutil

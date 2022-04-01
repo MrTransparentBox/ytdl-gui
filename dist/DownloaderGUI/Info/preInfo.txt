@@ -1,0 +1,5 @@
+The program may be flagged as suspicious or a virus on some systems (depending on your antivirus)
+This is only because it is not signed.
+
+To see security info about the program visit its virus total at: 
+https://www.virustotal.com/gui/file/7de8beaa53878e072eed3b8195f2539a281d734c0665e53ddc584601eec8e635?nocache=1
