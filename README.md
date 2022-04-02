@@ -11,7 +11,7 @@ A GUI For youtube-dl
 - ### Using the distributables folder
 	The [dist folder](dist/DownloaderGUI) provided the compiled script with all necessary resources. Download this folder and run DownloaderGUI.exe
 - ### Using the source code
-	You can use the [python file](DownloaderGUI.py) in the root directory along with the files and folders in [required_files.txt](required_files.txt) to run it from source code.
+	You can use the [python file](__main__.py) in the root directory along with the files and folders in [required_files.txt](required_files.txt) to run it from source code.
 	
 ## Manual
 - ### First setup
