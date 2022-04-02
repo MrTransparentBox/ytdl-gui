@@ -524,7 +524,6 @@ class Application(ThemedTk):
                 return None
             latest.raise_for_status()
             latest=latest.json()
-            print(latest)
             tag=latest['tag_name']
         except Exception as ex:
             messagebox.showerror("Unable to check for update", f"{ex}\n\nTry checking your internet connection, and try again.", parent=self)
