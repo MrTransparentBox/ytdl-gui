@@ -485,10 +485,9 @@ class Application(ThemedTk):
                 ttk.Label(self.uWin, textvariable=progress_text, justify=CENTER).pack(side=BOTTOM)
                 with requests.Session() as s:
                     try:
-                        tok=os.environ['github_token']
+                        auth=requests.auth.HTTPBasicAuth("MrTransparentBox", os.environ['github_token'])
                     except KeyError:
-                        tok=None
-                    auth=requests.auth.HTTPBasicAuth("MrTransparentBox", tok) if tok != None else None
+                        auth=None
                     self.log_debug(f"AUTH required: {auth.password if auth != None else auth}")
                     res = s.get(latest['assets'][0]['url'], headers={"Accept": "application/octet-stream"}, auth=auth, stream=True)
                     res.raise_for_status()
@@ -515,12 +514,14 @@ class Application(ThemedTk):
             os._exit(0)
         try:
             import requests, requests.auth
-            if os.environ["is_private"] == "false":
-                g_auth = None
-            else:
+            try:
                 g_auth=requests.auth.HTTPBasicAuth("MrTransparentBox:", os.environ['github_token'])
-            print(g_auth)
-            latest=requests.get("https://api.github.com/repos/MrTransparentBox/ytdl-gui/releases/latest", auth=g_auth)
+            except KeyError:
+                g_auth=None
+            latest=requests.get("https://api.github.com/repos/MrTransparentBox/ytdl-gui/releases/latest", headers={"accept": "application/vnd.github.v3+json"}, auth=g_auth)
+            if latest.status_code == 404:
+                messagebox.showinfo("No releases found", "There are no releases for this program.\nIf you think this is an error please report it on", parent=self)
+                return None
             latest.raise_for_status()
             latest=latest.json()
             print(latest)
@@ -1229,7 +1230,7 @@ class OutWin(Toplevel):
             print(f"mode '{self.mode}' incorrect")
             return
         self.t.start()
-appVersion = "2022.01.04.f1"
+appVersion = "2022.04.02.f1"
 notes = f"""Youtube-dl GUI v{appVersion}
 -- Finally added open command in menu
 -- .ytdl files remain open until program closes or a new file is opened.

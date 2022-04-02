@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2021, 9, 25, 1),
-    prodvers=(2021, 9, 25, 1),
+    filevers=(2022, 4, 2, 1),
+    prodvers=(2022, 4, 2, 1),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'TransparentBox Co.\0'),
         StringStruct(u'FileDescription', u'Start Youtube-dl GUI\0'),
-        StringStruct(u'FileVersion', u'2021.9.25.1 (beta)\0'),
+        StringStruct(u'FileVersion', u'2022.04.02.f1 (full)\0'),
         StringStruct(u'InternalName', u'DownloaderGUI\0'),
         StringStruct(u'LegalCopyright', u'\xa9 TransparentBox Co. All rights reserved.\0'),
         StringStruct(u'OriginalFilename', u'DownloaderGUI.Exe\0'),
         StringStruct(u'ProductName', u'TransparentBox Co. Youtube-dl GUI\0'),
-        StringStruct(u'ProductVersion', u'2021.9.25.1\0')])
+        StringStruct(u'ProductVersion', u'2022.04.02.1\0')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
