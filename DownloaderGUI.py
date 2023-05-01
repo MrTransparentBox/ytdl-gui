@@ -1,3 +1,4 @@
+#!/usr/bin/env D:\alexj\VSCode\Python\YTDL\.venv
 """This is a script to generate an easy to use GUI for the youtube-dl package.
 
 This is usually bundled into an executable with pyinstaller (or similar) for ease of use to non-python users.  
@@ -163,6 +164,7 @@ class Application(ThemedTk):
 
         self.helpMenu=Menu(self.menu, tearoff=0)
         self.helpMenu.add_command(label="About Youtube-dl GUI", command=self.about)
+        self.helpMenu.add_command(label="Help & Instructions", command=self.openHelp)
         self.helpMenu.add_separator()
         self.helpMenu.add_command(label="Report Bug", command=self.bug)
         self.helpMenu.add_command(label="Check for updates...", command=self.check_update)
@@ -294,25 +296,25 @@ class Application(ThemedTk):
             ttk.Label(self.uWin, text=f"A new version of Youtube-dl GUI is available!\nAn update is recommended.", justify=LEFT).pack(padx=5, pady=5)
             ttk.Label(self.uWin, text=f"\tNew version: {tag}\n\tYour Version: v{self.appVersion}", justify=LEFT).pack(pady=10)
             ttk.Label(self.uWin, text="Click update to download the new version.", justify=LEFT).pack()
-            updateBtn=ttk.Button(self.uWin, text="Update", command=st_update)
+            updateBtn=ttk.Button(self.uWin, text="Update", command=threading.Thread(target=st_update).start)
             updateBtn.pack(side=BOTTOM, pady=15)
             self.uWin.focus_set()
 
         def st_update():
             if self.ask_save() == None: return
-            fname=""
             def func():
+                fname = ""
                 progress = ttk.Progressbar(self.uWin, maximum=1, mode="determinate", length=200)
                 progress.pack(side=BOTTOM, fill=X, expand=True)
                 progress_text=StringVar(progress, value="Downloaded: 0%")
                 ttk.Label(self.uWin, textvariable=progress_text, justify=CENTER).pack(side=BOTTOM)
                 with requests.Session() as s:
-                    try:
-                        auth=requests.auth.HTTPBasicAuth("MrTransparentBox", os.environ['github_token'])
-                    except KeyError:
-                        auth=None
-                    self.log_debug(f"AUTH required: {auth.password if auth != None else auth}")
-                    res = s.get(latest['assets'][0]['url'], headers={"Accept": "application/octet-stream"}, auth=auth, stream=True)
+                    # try:
+                    #     auth=requests.auth.HTTPBasicAuth("MrTransparentBox", os.environ['github_token'])
+                    # except KeyError:
+                    #     auth=None
+                    # self.log_debug(f"AUTH required: {auth.password if auth != None else auth}")
+                    res = s.get(latest['assets'][0]['url'], headers={"Accept": "application/octet-stream", "Authorization": "Bearer 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"}, auth=None, stream=True)
                     res.raise_for_status()
                     cd=res.headers.get("content-disposition")
                     try:
@@ -328,19 +330,20 @@ class Application(ThemedTk):
                             progress['value']=dl/length
                             progress_text.set(f"Downloaded: {round(dl/length*100, 1)}%")
                         f.close()
-            th=threading.Thread(target=func)
-            th.start()
-            th.join(120)
-            if th.is_alive():
-                messagebox.showerror("Timeout error", "The download thread timed out. Please try again.\nIf this issue persists please report it on https://github.com/MrTransparentBox/ytdl-gui.", parent=self.uWin)
-            os.execl(fname, fname, """/NOCANCEL /RESTARTAPPLICATIONS /SP- /SILENT /NOICONS "/DIR=expand:{autopf}\\Youtube-dl GUI" /deleteinstaller='true'""")
+                return fname
+            fname = func()
+            print(fname)
+            # if th.is_alive():
+            #     messagebox.showerror("Timeout error", "The download thread timed out. Please try again.\nIf this issue persists please report it on https://github.com/MrTransparentBox/ytdl-gui.", parent=self.uWin)
+            os.execv(fname, 
+                     ["""/NOCANCEL /RESTARTAPPLICATIONS /SP- /SILENT /NOICONS "/DIR=expand:{autopf}\\Youtube-dl GUI" /deleteinstaller='true'"""])
             os._exit(0)
         try:
             import requests, requests.auth
-            try:
-                g_auth=requests.auth.HTTPBasicAuth("MrTransparentBox:", os.environ['github_token'])
-            except KeyError:
-                g_auth=None
+            # try:
+            #     g_auth=requests.auth.HTTPBasicAuth("MrTransparentBox:", os.environ['github_token'])
+            # except KeyError:
+            g_auth=None
             latest=requests.get("https://api.github.com/repos/MrTransparentBox/ytdl-gui/releases/latest", headers={"accept": "application/vnd.github.v3+json"}, auth=g_auth)
             if latest.status_code == 404:
                 messagebox.showinfo("No releases found", "There are no releases for this program.\nIf you think this is an error please report it on", parent=self)
@@ -450,6 +453,17 @@ class Application(ThemedTk):
         awLicTxt.config(yscrollcommand=atLicY.set)
         awLicTxt.pack(side=LEFT, fill=BOTH, expand=True)
         aboutNote.add(awthemeFrm, text="Awthemes License")
+
+    def openHelp(self):
+        self.helpWin = Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
+        self.helpWin.title("Youtube-dl GUI - Help")
+
+        helpFrm = ttk.Frame(self.helpWin)
+        helpTxt = Text(helpFrm)
+        helpTxt.insert(INSERT, "No U, get good.")
+        helpTxt.config(state=DISABLED)
+        helpFrm.pack()
+        helpTxt.pack(side=LEFT, fill=BOTH, expand=True)
 
     def time(self):
         if hasattr(self, "time_window"):
@@ -1040,19 +1054,16 @@ class OutWin(Toplevel):
             print(f"mode '{self.mode}' incorrect")
             return
         self.t.start()
-appVersion = "2023.01.04.f1"
+appVersion = "2023.05.01.f2"
 notes = f"""Youtube-dl GUI v{appVersion}
--- Finally added open command in menu
--- .ytdl files remain open until program closes or a new file is opened.
--- Moved appConfig.json and ToDownload.ytdl to %appdata%\\Youtube-dl_GUI
--- Added updater functionality.
--- Added licenses and legal notice.
--- Added audio extraction option.
--- Opt-in spotify support added.
--- Added preference to disable download statistics and percentage.
--- Added preference to remove urls from main text box once successfully downloaded.
--- Changed output template - added %(uploader)s.
--- General bug fixes and optimisations"""
+- Removed missing themes
+- Upgraded from youtube-dl to yt-dlp due to some issues
+- Removed need to restart for theme application
+- Improved theme handling to properly set background after restart
+- Optimised progress hook for download speed
+- Option to remove successful downloads now works
+- Moved other classes into separate files
+- Added instruction button in help"""
 def main(args: argparse.Namespace):
     if args.notes:
         print(notes)
