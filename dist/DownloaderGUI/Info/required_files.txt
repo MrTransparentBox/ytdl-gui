@@ -10,4 +10,5 @@ tksvg0.7
 utils
 AtomicParsley-win32-0.9.0
 
-# Test all on another machine. To make sure this is correct.
+Files:
+embedthumbnail.py # Change this with the embedthumbnail.py in the youtube-dl library folder.

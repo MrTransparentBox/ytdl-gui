@@ -4,191 +4,13 @@ This is usually bundled into an executable with pyinstaller (or similar) for eas
 This also implements some additional features on top of what youtube-dl provides, such as, total length calculation of videos in a folder, spotify support (eventually) and more...
 """
 print("Loading Modules...")
-import os, json, sys, threading, argparse, spotipy, validators, re
-from ttkthemes import ThemedTk
+import os, json, sys, threading, argparse, spotipy, re, validators
+from ttkthemes import ThemedTk # pylint: disable=import-error
 from tkinter import messagebox, filedialog, ttk, font
 from tkinter import * #For development use... pylint: disable=unused-wildcard-import
 from typing import Any
-from youtube_dl import YoutubeDL
-
-
-
-class Font_wm(Toplevel):
-    def __init__(self, Font=None):
-        Toplevel.__init__(self)
-        self.mainfont=Font
-        self.title('Font ...')
-
-        self.var=StringVar()# For Font Face
-        self.var.set(self.mainfont.actual('family'))
-        self.var1=IntVar()  # for Font Size
-        self.var1.set(self.mainfont.actual('size'))
-        self.var2=StringVar() # For Bold
-        self.var2.set(self.mainfont.actual('weight'))
-        self.var3=StringVar() # For Italic
-        self.var3.set(self.mainfont.actual('slant'))
-        self.var4=IntVar()# For Underline
-        self.var4.set(self.mainfont.actual('underline'))
-        self.var5=IntVar() # For Overstrike
-        self.var5.set(self.mainfont.actual('overstrike'))
-
-        self.font_1=font.Font()
-        for i in ['family', 'weight', 'slant', 'overstrike', 'underline', 'size']:
-            self.font_1[i]=self.mainfont.actual(i)
-
-        # Function
-        def checkface(event=None):
-            try:
-                self.var.set(str(self.listbox.get(self.listbox.curselection())))
-                self.font_1.config(family=self.var.get(), size=self.var1.get(), weight=self.var2.get(), slant=self.var3.get(), underline=self.var4.get(), overstrike=self.var5.get())
-            except Exception:
-                pass
-        def checksize(event=None):
-            try:
-                self.var1.set(int(self.size.get(self.size.curselection())))
-                self.font_1.config(family=self.var.get(), size=self.var1.get(), weight=self.var2.get(), slant=self.var3.get(), underline=self.var4.get(), overstrike=self.var5.get())
-            except Exception:
-                pass
-        def checkstyle(event=None):
-            try:
-                self.font_1.config(family=self.var.get(), size=self.var1.get(), weight=self.var2.get(), slant=self.var3.get(), underline=self.var4.get(), overstrike=self.var5.get())
-            except Exception:
-                pass
-        def applied():
-            self.result=(self.var.get(), self.var1.get(), self.var2.get(), self.var3.get(), self.var4.get(), self.var5.get())
-            self.mainfont['family']=self.var.get()
-            self.mainfont['size']=self.var1.get()
-            self.mainfont['weight']=self.var2.get()
-            self.mainfont['slant']=self.var3.get()
-            self.mainfont['underline']=self.var4.get()
-            self.mainfont['overstrike']=self.var5.get()
-        def out():
-            self.result=(self.var.get(), self.var1.get(), self.var2.get(), self.var3.get(), self.var4.get(), self.var5.get())
-            self.mainfont['family']=self.var.get()
-            self.mainfont['size']=self.var1.get()
-            self.mainfont['weight']=self.var2.get()
-            self.mainfont['slant']=self.var3.get()
-            self.mainfont['underline']=self.var4.get()
-            self.mainfont['overstrike']=self.var5.get()
-            # applied()
-            self.destroy()
-        def end():
-            self.result=None
-            self.destroy()
-            
-        self.mainwindow=ttk.Frame(self)
-        self.mainwindow.pack(padx=10, pady=10)
-
-        self.mainframe=ttk.Frame(self.mainwindow)
-        self.mainframe.pack(side='top',ipady=30, ipadx=30,expand='no', fill='both')
-        self.mainframe0=ttk.Frame(self.mainwindow)
-        self.mainframe0.pack(side='top', expand='yes', fill='x', padx=10, pady=10)
-        self.mainframe1=ttk.Frame(self.mainwindow)
-        self.mainframe1.pack(side='top',expand='no', fill='both')
-        self.mainframe2=ttk.Frame(self.mainwindow)
-        self.mainframe2.pack(side='top',expand='yes', fill='x', padx=10, pady=10)
-        # Frame in [  main frame]
-        self.frame=ttk.LabelFrame(self.mainframe, text='Select Font Face')
-        self.frame.pack(side='left', padx=10, pady=10, ipadx=20, ipady=20, expand='yes', fill='both')
-        self.frame1=ttk.LabelFrame(self.mainframe, text='Select Font size')
-        self.frame1.pack(side='left', padx=10, pady=10, ipadx=20, ipady=20, expand='yes', fill='both')
-        self.famEnt=ttk.Entry(self.frame, textvariable=self.var)
-        self.famEnt.pack(side='top', padx=5, pady=5, expand='yes', fill='x')
-        self.listbox=Listbox(self.frame, bg='gray70')
-        self.listbox.pack(side='top', padx=5, pady=5, expand='yes', fill='both')
-        fams = list(font.families())
-        fams.sort()
-        for i in fams:
-            self.listbox.insert(END, i)
-
-        # Frame in [ 0. mainframe]
-        self.bold=ttk.Checkbutton(self.mainframe0, text='Bold', onvalue='bold', offvalue='normal', variable=self.var2, command=checkstyle)
-        self.bold.pack(side='left',expand='yes', fill='x')
-        self.italic=ttk.Checkbutton(self.mainframe0, text='Italic', onvalue='italic', offvalue='roman',variable=self.var3, command=checkstyle)
-        self.italic.pack(side='left', expand='yes', fill='x')
-        self.underline=ttk.Checkbutton(self.mainframe0, text='Underline',onvalue=1, offvalue=0, variable=self.var4, command=checkstyle)
-        self.underline.pack(side='left', expand='yes', fill='x')
-        self.overstrike=ttk.Checkbutton(self.mainframe0, text='Overstrike',onvalue=1, offvalue=0, variable=self.var5, command=checkstyle)
-        self.overstrike.pack(side='left', expand='yes', fill='x')
-        
-        # Frame in [ 1. main frame]
-        self.sizeEnt=ttk.Entry(self.frame1, textvariable=self.var1)
-        self.sizeEnt.pack(side='top', padx=5, pady=5, expand='yes', fill='x')
-        self.size=Listbox(self.frame1, bg='gray70')
-        self.size.pack(side='top', padx=5, pady=5, expand='yes', fill='both')
-        for i in range(30):
-            self.size.insert(END, i)
-
-        ttk.Label(self.mainframe1, text='''\nABCDEabcde12345\n''', font=self.font_1).pack(expand='no', padx=10,pady=10)
-        # Frame in [ 2. mainframe]
-        ttk.Button(self.mainframe2, text='   OK   ', command=out).pack(side='left', expand='yes', fill='x', padx=5, pady=5)
-        ttk.Button(self.mainframe2, text=' Cancel ', command=end).pack(side='left', expand='yes', fill='x', padx=5, pady=5)
-        ttk.Button(self.mainframe2, text=' Apply  ', command=applied).pack(side='left', expand='yes', fill='x', padx=5, pady=5)
-        
-        self.listbox.bind('<<ListboxSelect>>', checkface)
-        self.size.bind('<<ListboxSelect>>', checksize)
-class GetStats():
-    """Gets basic stats about a file or folder. Only folder video contents lenth currently.
-    
-    Ar
-    ------------
-    pathname: str
-      The folder path to get statistics for.
-        Can include shell variables in form of '$var', '${var}' and '%var%'
-    
-    quiet: bool
-      If True, suppresses non-vital messages
-      
-    silent: bool
-      If True, supresses all messages"""
-    def __init__(self, pathname, quiet=False, silent=False):
-        self.pathname = os.path.realpath(os.path.expandvars(pathname))
-        self.quiet = quiet
-        self.silent = silent
-        self.takeTime = False
-        self.__dots__ = 0
-    def write(self, text: str, long=0, importance=0):
-        stages = ["|", "/", "-", "\\"]
-        if not self.quiet or (importance == 1 and self.silent == False):
-            print(text)
-        elif self.silent and importance > 1:
-            print(text)
-        elif self.silent and importance <= 1:
-            pass
-        elif self.quiet and long == 1:
-            self.__dots__ = 0
-            print("Processing", end="")
-        elif self.quiet and long == 2:
-            self.__dots__ += 1
-            print(f"\rProcessing  {stages[self.__dots__%4]}", end="")
-                
-    def get_length(self, filename):
-        if not os.path.exists(filename): return None
-        from moviepy.editor import VideoFileClip
-        try:
-            with VideoFileClip(filename) as clip:
-                return clip.duration    
-        except Exception as ex:
-            sys.exit(f"vv Error occurred getting video duration vv.\n\n{str(ex)}\n")
-
-    def folder_length(self) -> dict:
-        sDir = self.pathname
-        tlis = os.listdir(sDir)
-        self.write("Gathered folder contents.")
-        totTime=0
-        self.write("<Video name>: <seconds.microseconds>\n\n--------------------", 1)
-        for i in tlis:
-            if (i.endswith(".mp4") or i.endswith(".mov") or i.endswith(".mkv") or i.endswith(".webm") or i.endswith(".avi")) and i.count(".temp") == 0:
-                t = self.get_length(os.path.join(self.pathname, i))
-                if t == None: continue
-                self.write(f"{i}: {t}s\n--------------------\n", 2)
-                totTime += t
-        seconds=totTime%60
-        minutes=int((totTime/60)%60)
-        hours=int(totTime/3600)
-        self.write(f"Total video time: {hours}h:{minutes}m:{seconds}s\n\n", importance=1)
-        return {"hours": hours, "minutes": minutes, "seconds": seconds}
-
+from yt_dlp import YoutubeDL # pylint: disable=import-error
+from models import GetStats, Font_wm
 class Application(ThemedTk):
     """Base application window and functions for the Youtube-dl GUI
 
@@ -245,13 +67,13 @@ class Application(ThemedTk):
         ths = self.get_themes()
         ths.sort()
         self.log_debug(f"THEMES PRESENT: {ths == self.availThemes}"); print(f"EXE: {self.exe}")
+        self.log_debug(", ".join(ths))
         if ths != self.availThemes:
             difference=list(set(ths) ^ set(self.availThemes))
             messagebox.showerror("Themes unavailable", f"The themes: {difference} aren't available\nThis may require a reinstall of the software to fix this issue.\nOtherwise, please report an issue.", parent=self)
-            sys.exit(f"Themes: {', '.join(difference)} \nare unavailable")
+            if self.appConfig['prefs']['theme'] in difference:
+                sys.exit(f"Themes: {', '.join(difference)} \nare unavailable")
         del ths, self.availThemes
-        self.update_theme(self.appConfig['prefs']['theme'])
-        self.config(background=self.backgrounds[self.appConfig['prefs']['theme']])
         if str(self.appConfig["dir"]).strip() == "":
             ans = filedialog.askdirectory(parent=self, title="Select Download Directory...")
             if ans.strip() == "":
@@ -362,7 +184,8 @@ class Application(ThemedTk):
         if self.appConfig['prefs']['update_launch']:
             if self.check_update(start_up=True) == False:
                 self.log_debug("No updates")
-        
+        self.update_theme(self.appConfig['prefs']['theme'])
+
     def log_debug(self, value: object, default_stdout: bool=False):
         if self.debug: 
             if default_stdout:
@@ -452,10 +275,10 @@ class Application(ThemedTk):
             self.title(f"*{self.title()}*")
     @staticmethod
     def version_compare(ver1: str, ver2: str):
-        if ver1.count(".") != ver2.count("."): raise ValueError(f"Version formats of {ver1} and {ver2} aren't the same.")
         sp1=ver1.split(".")
         sp2=ver2.split(".")
-        for i in range(ver1.count(".")+1):
+        if len(sp1) != len(sp2): raise ValueError(f"Version formats of {ver1} and {ver2} aren't the same.")
+        for i in range(len(sp1)):
             if sp1[i] > sp2[i]:
                 return ">"
             elif sp1[i] < sp2[i]:
@@ -634,7 +457,7 @@ class Application(ThemedTk):
             if self.time_window.setGrab: self.time_window.grab_set()
             self.log_debug("Unwithdrawn time win")
         else:
-            self.time_window = OutWin(self, "time", f"List Time Output - {self.appConfig['dir']}", block=False, deleteOnClose=self.appConfig['prefs']['outwin_mode'])
+            self.time_window = OutWin(self, "time", f"List Time Output - {self.appConfig['dir']}", block=False, deleteOnClose=1)
             self.stats = GetStats(self.appConfig['dir'])
             self.log_debug("Created time win")
     def yt_win(self):
@@ -650,29 +473,36 @@ class Application(ThemedTk):
             self.log_debug("Created yt win")
     def yt_download(self, toDisable: ttk.Button, run=1):
         toDisable.config(state=DISABLED)
-        def progress_hook(d):
-            if d['status'] == 'downloading':
-                if not self.appConfig['prefs']['disable_percentage']:
+        def progress_hook(d: dict):
+            def inner_hook(d: dict):
+                if d['status'] == 'downloading':
+                    if not self.appConfig['prefs']['disable_percentage']:
 
+                        try:
+                            if d['total_bytes'] != None:
+                                self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes']
+                        except Exception as e:
+                            self.yt_download_win.errRedir.old_stderr.write(f"WARNING: Progess bar unavailable; {e}\n")
+                        else:
+                            self.yt_download_win.percent.set(f"{round(self.yt_download_win.progress['value']*100, 1)}%")
+                    if not self.appConfig['prefs']['disable_stats']:
+                        MiB_done=d['downloaded_bytes']/1048576
+                        self.log_debug(MiB_done)
+                        if d['total_bytes'] != None:
+                            self.log_debug(MiB_done/d['elapsed'])
+                            self.log_debug(d['total_bytes']/1048576)
+                            self.yt_download_win.stat.set(f"{round(MiB_done, 1)}MiB/{round(d['total_bytes']/1048576, 1)}MiB @ {round(MiB_done/d['elapsed'], 1)}MiB/s")
+                elif d['status'] == 'finished':
                     try:
-                        self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes']
-                    except Exception as e:
-                        self.yt_download_win.errRedir.old_stderr.write(f"WARNING: Progess bar unavailable; {e}\n")
-                    else:
-                        self.yt_download_win.percent.set(f"{round(self.yt_download_win.progress['value']*100, 1)}%")
-                if not self.appConfig['prefs']['disable_stats']:
-                    MiB_done=d['downloaded_bytes']/1048576
-                    self.yt_download_win.stat.set(f"{round(MiB_done, 1)}MiB/{round(d['total_bytes']/1048576, 1)}MiB @ {round(MiB_done/d['elapsed'], 1)}MiB/s")
-            elif d['status'] == 'finished':
-                try:
-                    print(f"Finished downloading {d['total_bytes']} bytes in {d['elapsed']} seconds")
-                except:
-                    print("Download finished")
-                finally:
-                    self.yt_download_win.progress['value'] = 0
-                    self.yt_download_win.percent.set("Download Complete! - Finishing up")
-                    tot=round(d['total_bytes']/1048576, 1)
-                    self.yt_download_win.stat.set(f"{tot}MiB/{tot}MiB @ 0MiB/s")
+                        print(f"Finished downloading {d['total_bytes']} bytes in {d['elapsed']} seconds")
+                    except:
+                        print("Download finished")
+                    finally:
+                        self.yt_download_win.progress['value'] = 0
+                        self.yt_download_win.percent.set("Download Complete! - Finishing up")
+                        tot=round(d['total_bytes']/1048576, 1)
+                        self.yt_download_win.stat.set(f"{tot}MiB/{tot}MiB @ 0MiB/s")
+            t = threading.Thread(target=inner_hook, args=[d]).start()
         if not os.path.exists(os.path.join(self.dataPath, "archive.txt")):
             open(os.path.join(self.dataPath, "archive.txt"), "w").close() # Create archive if it doesn't exist
         opts = {"default_search": "auto", 
@@ -692,7 +522,8 @@ class Application(ThemedTk):
         "verbose": self.appConfig['prefs']['verbosity']} or self.debug
         if self.appConfig['opts']['audio']: opts['postprocessors'].append({'key': 'FFmpegExtractAudio'})
         if self.appConfig['opts']['metadata']: opts['postprocessors'].append({'key': 'FFmpegMetadata'})
-        if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False, "atomic_path": self.relative_path("AtomicParsley-win32-0.9.0/AtomicParsley.exe")})#"./AtomicParsley-win32-0.9.0/AtomicParsley.exe"})
+        # if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False, "atomic_path": self.relative_path("AtomicParsley-win32-0.9.0/AtomicParsley.exe")})#"./AtomicParsley-win32-0.9.0/AtomicParsley.exe"})
+        if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
         if self.appConfig['opts']['subtitles']: opts['postprocessors'].append({'key': 'FFmpegEmbedSubtitle'})
         if self.appConfig['prefs']['disable_stats'] == False or self.appConfig['prefs']['disable_percentage'] == False: 
             self.log_debug("Added progress hook")
@@ -746,6 +577,7 @@ class Application(ThemedTk):
                         if x in i and not self.debug:
                             copy.remove(i)
                         elif x in i and self.debug:
+                            copy.remove(i)
                             self.log_debug(f"Removing {i} from mainTxt")
 
                 
@@ -920,7 +752,6 @@ class Application(ThemedTk):
             self.write_config()
         def reset_prefs(arg=None):
             self.appConfig['prefs'] = {"font": self.appConfig['prefs']['font'], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 0, "update_launch": True, "disable_stats": False, "disable_percentage": False}
-            self.write_config()
             para.set(self.appConfig['prefs']['parallel'])
             theme.set(self.appConfig['prefs']['theme'])
             log.set(self.appConfig['prefs']['print_log'])
@@ -931,27 +762,7 @@ class Application(ThemedTk):
             disStat.set(self.appConfig['prefs']['disable_stats'])
             disPerc.set(self.appConfig['prefs']['disable_percentage'])
             self.update_theme(theme.get())
-            theme_changed()
-        def theme_changed(arg=None):
-            update_prefs()
-            ans = messagebox.askyesno("Restart Required", "Changing theme requires the app to be relaunched for all changes to be visible.\nRestart Now?", parent=self.pWin)
-            if ans and self.exe:
-                if self.ask_save() == None:
-                    print("[WARNING]: Some Elements may have visual glitches without a restart.")
-                    return
-                print("EXE restart")
-                os.system("cls")
-                os.execl(sys.executable, f'"{self.f.name if self.f != None else None}"')
-            elif ans:
-                if self.ask_save() == None:
-                    print("[WARNING]: Some Elements may have visual glitches without a restart.")
-                    return
-                print("PYTHON RESTART")
-                os.system("cls")
-                os.execl(sys.executable, __file__, f'"{self.f.name if self.f != None else None}"')
-                print("Supposedly unreachable - ln 927")
-            else:
-                print("[WARNING]: Some Elements may have visual glitches without a restart.")
+            self.write_config()
         resetBtn = ttk.Button(self.pWin, text="Reset Prefs", command=reset_prefs)
         resetBtn.pack(side=BOTTOM)
         prefBook = ttk.Notebook(self.pWin)
@@ -960,7 +771,7 @@ class Application(ThemedTk):
         pFrm = ttk.Frame(prefBook)
         pFrm.pack(expand=True, fill=BOTH, side=TOP)
         para = BooleanVar(self.pWin, value=self.appConfig['prefs']['parallel'])
-        paraBox = ttk.Checkbutton(pFrm, variable=para, command=warn_para, text=" - Download in parallel (Will mess up output window)")
+        paraBox = ttk.Checkbutton(pFrm, variable=para, command=warn_para, text=" - Download in parallel (Much Faster, lower readability)")
         log = BooleanVar(self.pWin, value=self.appConfig['prefs']['print_log'])
         logBox = ttk.Checkbutton(pFrm, variable=log, command=update_prefs, text=" - Print download log to output (defaults to console window)")
         checkUp = BooleanVar(self.pWin, value=self.appConfig['prefs']['verbosity'])
@@ -968,7 +779,7 @@ class Application(ThemedTk):
 
         themeFrm = ttk.Frame(pFrm)
         theme = StringVar(self.pWin, value=self.appConfig['prefs']['theme'])
-        themeBox = ttk.OptionMenu(themeFrm, theme, theme.get(), 'adapta', 'alt', 'aquativo', 'arc', 'awarc', 'awblack', 'awbreeze', 'awbreezedark', 'awclearlooks', 'awdark', 'awlight', 'awtemplate', 'awwinxpblue', 'black', 'blue', 'breeze', 'clam', 'classic', 'clearlooks', 'default', 'elegance', 'equilux', 'itft1', 'keramik', 'kroc', 'plastik', 'radiance', 'scidblue', 'scidgreen', 'scidgrey', 'scidmint', 'scidpink', 'scidpurple', 'scidsand', 'smog', 'ubuntu', 'vista', 'winnative', 'winxpblue', 'xpnative', 'yaru', command=theme_changed)
+        themeBox = ttk.OptionMenu(themeFrm, theme, theme.get(), 'adapta', 'alt', 'aquativo', 'arc', 'awarc', 'awblack', 'awbreeze', 'awbreezedark', 'awclearlooks', 'awdark', 'awlight', 'awtemplate', 'awwinxpblue', 'black', 'blue', 'breeze', 'clam', 'classic', 'clearlooks', 'default', 'elegance', 'equilux', 'itft1', 'keramik', 'kroc', 'plastik', 'radiance', 'scidblue', 'scidgreen', 'scidgrey', 'scidmint', 'scidpink', 'scidpurple', 'scidsand', 'smog', 'ubuntu', 'vista', 'winnative', 'winxpblue', 'xpnative', 'yaru', command=update_prefs)
         paraBox.grid(column=0, row=0, sticky=NW)
         logBox.grid(column=0, row=1, sticky=NW)
         checkUpBox.grid(column=0, row=2, sticky=NW)
@@ -1202,7 +1013,7 @@ class OutWin(Toplevel):
         elif self.master.running and self.delClose == 1:
             messagebox.showwarning("Download not stopped...", "Download logs continue in the console.", parent=self)
         self.grab_release()
-        if self.delClose == 1:
+        if self.delClose == 1: # Do delete
             self.destroy()
             self.outRedir.close()
             self.errRedir.close()
@@ -1214,7 +1025,7 @@ class OutWin(Toplevel):
                 self.master.time_window.destroy()
                 del self.master.time_window
                 self.master.log_debug("Deleted time win")
-        elif self.delClose == 0:
+        elif self.delClose == 0: # Don't delete
             self.withdraw()
             self.master.log_debug("Withdrawn")
         self.master.focus_set()
@@ -1229,7 +1040,7 @@ class OutWin(Toplevel):
             print(f"mode '{self.mode}' incorrect")
             return
         self.t.start()
-appVersion = "2022.04.02.f1"
+appVersion = "2023.01.04.f1"
 notes = f"""Youtube-dl GUI v{appVersion}
 -- Finally added open command in menu
 -- .ytdl files remain open until program closes or a new file is opened.

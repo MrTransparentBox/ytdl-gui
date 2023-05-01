@@ -1,6 +1,11 @@
 /build/
 /Legacy/
+/.venv/
+/.vscode/
 /CompileGUI.ps1
 /.cache
+/__pycache__/
+/.vs/
+.env
 /YTDLGUISetupScript.iss
 /Youtube-dl_GUI_Setup.exe
