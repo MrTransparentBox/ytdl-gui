@@ -5,7 +5,7 @@ from tkinter import messagebox
 if __name__ == "__main__":
     import psutil
     processes=[p.name() for p in psutil.process_iter()]
-    if processes.count("YTDL_GUI.exe") < 2:
+    if processes.count("DownloaderGUI.exe") < 2:
         parser = argparse.ArgumentParser()
         parser.add_argument("-d", "--debug", "--verbose", action="store_true", help="set program to debug mode for more info printed", dest="debug", default=False)
         parser.add_argument("-n", "--notes", action="store_true", help="show update notes and exit", default=False)

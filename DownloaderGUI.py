@@ -4,14 +4,17 @@
 This is usually bundled into an executable with pyinstaller (or similar) for ease of use to non-python users.  
 This also implements some additional features on top of what youtube-dl provides, such as, total length calculation of videos in a folder, spotify support (eventually) and more...
 """
-print("Loading Modules...")
 import os, json, sys, threading, argparse, spotipy, re, validators
 from ttkthemes import ThemedTk # pylint: disable=import-error
 from tkinter import messagebox, filedialog, ttk, font
-from tkinter import * #For development use... pylint: disable=unused-wildcard-import
-from typing import Any
+from tkinter.constants import *
+from tkinter import Toplevel, Menu, StringVar, BooleanVar, IntVar, Text, TclError
+from tkinter import * #For development use...
+from typing import Any, List
 from yt_dlp import YoutubeDL # pylint: disable=import-error
-from models import GetStats, Font_wm
+from models.GetStats import GetStats
+from models.Font_wm import Font_wm
+from models.OutWin import OutWin
 class Application(ThemedTk):
     """Base application window and functions for the Youtube-dl GUI
 
@@ -46,7 +49,14 @@ class Application(ThemedTk):
                 self.appConfig={}
             f.close()
 
-        self.defaultConfig={"dir": "", "spotify_enabled": False, "prefs": {"font": ["Arial", 14, "normal", "roman", 0, 0], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 0, "update_launch": True, "disable_stats": False, "disable_percentage": False}, "opts": {"resolution": 1080, "subtitles": True, "metadata": True, "thumbnail": True, "description": False, "audio": False}}
+        self.defaultConfig: dict={"dir": "", "spotify_enabled": False, "prefs": {"font": ["Arial", 14, "normal", "roman", 0, 0], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 1, "update_launch": True, "disable_stats": False, "disable_percentage": False}, "opts": {"resolution": 1080, "subtitles": True, "metadata": True, "thumbnail": True, "description": False, "audio": False, "video_format": "best", "audio_format": "best", "strict_format": False, "format_string": ""}}
+        for k, v in self.defaultConfig.items():
+            if self.appConfig.get(k, None) == None:
+                self.appConfig[k] = v
+            if type(v) == dict:
+                for k2, v2 in v.items():
+                    if dict(self.appConfig.get(k, None)).get(k2, None) == None:
+                        self.appConfig[k][k2] = v2
         if self.appConfig == {}:
             self.appConfig=self.defaultConfig
             self.write_config()
@@ -289,19 +299,24 @@ class Application(ThemedTk):
                 return "="
         raise Exception("Something went wrong and the comparisons didn't match.")
     def check_update(self, start_up: bool=False):
+        updateBtn = None
         def update_Win():
+            global updateBtn
             self.uWin = Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
             self.uWin.iconbitmap(self.relative_path("Resources\\YTDLv2_256.ico"))
             self.uWin.title("Youtube-dl GUI - Update")
             ttk.Label(self.uWin, text=f"A new version of Youtube-dl GUI is available!\nAn update is recommended.", justify=LEFT).pack(padx=5, pady=5)
             ttk.Label(self.uWin, text=f"\tNew version: {tag}\n\tYour Version: v{self.appVersion}", justify=LEFT).pack(pady=10)
             ttk.Label(self.uWin, text="Click update to download the new version.", justify=LEFT).pack()
-            updateBtn=ttk.Button(self.uWin, text="Update", command=threading.Thread(target=st_update).start)
+            update_thread = threading.Thread(target=st_update)
+            updateBtn=ttk.Button(self.uWin, text="Update", command=update_thread.start)
             updateBtn.pack(side=BOTTOM, pady=15)
             self.uWin.focus_set()
 
         def st_update():
+            global updateBtn
             if self.ask_save() == None: return
+            self.uWin.focus_set()
             def func():
                 fname = ""
                 progress = ttk.Progressbar(self.uWin, maximum=1, mode="determinate", length=200)
@@ -314,7 +329,7 @@ class Application(ThemedTk):
                     # except KeyError:
                     #     auth=None
                     # self.log_debug(f"AUTH required: {auth.password if auth != None else auth}")
-                    res = s.get(latest['assets'][0]['url'], headers={"Accept": "application/octet-stream", "Authorization": "Bearer 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"}, auth=None, stream=True)
+                    res = s.get("https://github.com/MrTransparentBox/ytdl-gui/releases/latest/download/Youtube-dl_GUI_Setup.exe", headers={"Accept": "application/octet-stream", "X-GitHub-Api-Version": "2022-11-28"}, stream=True)
                     res.raise_for_status()
                     cd=res.headers.get("content-disposition")
                     try:
@@ -323,28 +338,32 @@ class Application(ThemedTk):
                         fname=os.path.join(os.path.expandvars("%tmp%"), cd[cd.index("filename=")+9:])
                     length=int(res.headers.get("content-length"))
                     dl=0
-                    with open(fname, "wb") as f:
-                        for data in res.iter_content(chunk_size=524288):
-                            dl+=len(data)
-                            f.write(data)
-                            progress['value']=dl/length
-                            progress_text.set(f"Downloaded: {round(dl/length*100, 1)}%")
-                        f.close()
+                    try:
+                        with open(fname, "wb") as f:
+                            for data in res.iter_content(chunk_size=524288):
+                                dl+=len(data)
+                                f.write(data)
+                                progress['value']=dl/length
+                                progress_text.set(f"Downloaded: {round(dl/length*100, 1)}%")
+                            f.close()
+                    except TclError:
+                        return
                 return fname
+            updateBtn.config(state = DISABLED)
             fname = func()
-            print(fname)
             # if th.is_alive():
             #     messagebox.showerror("Timeout error", "The download thread timed out. Please try again.\nIf this issue persists please report it on https://github.com/MrTransparentBox/ytdl-gui.", parent=self.uWin)
-            os.execv(fname, 
-                     ["""/NOCANCEL /RESTARTAPPLICATIONS /SP- /SILENT /NOICONS "/DIR=expand:{autopf}\\Youtube-dl GUI" /deleteinstaller='true'"""])
-            os._exit(0)
+            if fname != None:
+                os.execv(fname, 
+                         ["""/NOCANCEL /RESTARTAPPLICATIONS /SP- /SILENT /NOICONS \"/DIR=expand:{autopf}\\Youtube-dl GUI\""""])
+                os._exit(0)
         try:
             import requests, requests.auth
             # try:
             #     g_auth=requests.auth.HTTPBasicAuth("MrTransparentBox:", os.environ['github_token'])
             # except KeyError:
             g_auth=None
-            latest=requests.get("https://api.github.com/repos/MrTransparentBox/ytdl-gui/releases/latest", headers={"accept": "application/vnd.github.v3+json"}, auth=g_auth)
+            latest=requests.get("https://api.github.com/repos/MrTransparentBox/ytdl-gui/releases/latest", headers={"accept": "application/vnd.github.v3+json", "X-GitHub-Api-Version": "2022-11-28"}, auth=g_auth)
             if latest.status_code == 404:
                 messagebox.showinfo("No releases found", "There are no releases for this program.\nIf you think this is an error please report it on", parent=self)
                 return None
@@ -368,7 +387,7 @@ class Application(ThemedTk):
     
     def enable_sp(self):
         if not messagebox.askokcancel("Proceed?", "This will open the authorisation in your default browser when download starts.\nProceed?", parent=self): return
-        self.PKCE_Man = spotipy.SpotifyPKCE(redirect_uri="http://localhost:8000/authorise", scope="playlist-read-private,playlist-read-collaborative")
+        self.PKCE_Man = spotipy.SpotifyPKCE(redirect_uri="http://localhost:8000/authorise", client_id="fbeffc75e6a44a119e33e9061123fefc", scope="playlist-read-private,playlist-read-collaborative")
         self.spotify = spotipy.Spotify(auth_manager=self.PKCE_Man)
         self.toolMenu.entryconfigure(7, label="Spotify already enabled.", state=DISABLED)
         self.appConfig['spotify_enabled'] = True
@@ -383,9 +402,9 @@ class Application(ThemedTk):
             self.appConfig['dir'] = os.path.abspath(ans)
         self.write_config()
         self.title(f"Youtube-dl GUI - {str(self.appConfig['dir'])}")
+    def link(self, url):
+        os.startfile(url)
     def about(self):
-        def link(url):
-            os.startfile(url)
         
         self.aWin=Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
         self.aWin.title("Youtube-dl GUI - About")
@@ -401,19 +420,19 @@ class Application(ThemedTk):
         ttk.Label(mainFrm, text="Author: ", justify=LEFT).grid(column=0,row=1,sticky=NW,padx=10,pady=2)
         ttk.Label(mainFrm, text="Alex Johnson", justify=LEFT).grid(column=1,row=1,sticky=NW,padx=10,pady=2)
         ttk.Label(mainFrm, text="Contact: ", justify=LEFT).grid(column=0,row=2,sticky=NW,padx=10,pady=2)
-        con2Lbl=ttk.Label(mainFrm, text="16JohnA28@gmail.com", foreground="#00A7FF", font=undFnt, cursor="hand2", justify=LEFT)
-        con2Lbl.bind("<Button-1>", lambda e: link("mailto:16JohnA28@gmail.com"))
+        con2Lbl=ttk.Label(mainFrm, text="email", foreground="#00A7FF", font=undFnt, cursor="hand2", justify=LEFT)
+        con2Lbl.bind("<Button-1>", lambda e: self.link("mailto:16JohnA28@gmail.com"))
         con2Lbl.grid(column=1,row=2,sticky=NW,padx=10,pady=2)
         ttk.Label(mainFrm, text="Github: ", justify=LEFT).grid(column=0,row=3,sticky=NW,padx=10,pady=2)
         git2Lbl=ttk.Label(mainFrm, text="https://github.com/MrTransparentBox/ytdl-gui", foreground="#00A7FF", font=undFnt, cursor="hand2", justify=LEFT)
-        git2Lbl.bind("<Button-1>", lambda e: link("https://github.com/MrTransparentBox/ytdl-gui"))
+        git2Lbl.bind("<Button-1>", lambda e: self.link("https://github.com/MrTransparentBox/ytdl-gui"))
         git2Lbl.grid(column=1,row=3,sticky=NW,padx=10,pady=2)
         ttk.Label(mainFrm, text="Copyright © 2021 Alexander Johnson", justify=LEFT).grid(column=0, row=4, columnspan=3, pady=5)
         ttk.Label(mainFrm, text='THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,\nEXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\nMERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\nIN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR\nOTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,\nARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR\nOTHER DEALINGS IN THE SOFTWARE.\n', 
         justify=LEFT, relief=GROOVE).grid(column=0, row=5, columnspan=3)
         ttk.Label(mainFrm, text="Refer to ").grid(column=0, row=6, sticky=W)
         locLbl=ttk.Label(mainFrm, text="LICENSE", foreground="#00A7FF", font=undFnt, cursor="hand2", justify=LEFT)
-        locLbl.bind("<Button-1>", lambda e: link(self.relative_path("info\\LICENSE")))
+        locLbl.bind("<Button-1>", lambda e: self.link(self.relative_path("LICENSE")))
         locLbl.grid(column=1, row=6, sticky=W)
         ttk.Label(mainFrm, text=" for information regarding distribution, modification and use", justify=LEFT).grid(column=2, row=6, sticky=W)
         aboutNote.add(mainFrm, text="About Youtube-dl GUI")
@@ -457,13 +476,24 @@ class Application(ThemedTk):
     def openHelp(self):
         self.helpWin = Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
         self.helpWin.title("Youtube-dl GUI - Help")
-
-        helpFrm = ttk.Frame(self.helpWin)
-        helpTxt = Text(helpFrm)
-        helpTxt.insert(INSERT, "No U, get good.")
-        helpTxt.config(state=DISABLED)
-        helpFrm.pack()
-        helpTxt.pack(side=LEFT, fill=BOTH, expand=True)
+        helpBook = ttk.Notebook(self.helpWin)
+        helpBook.enable_traversal()
+        helpBook.pack(side=TOP, fill=BOTH, expand=True)
+        customFormatFrm = ttk.Frame(helpBook)
+        customFormatBox = Text(customFormatFrm)
+        customFormatBox.insert(INSERT, """Custom format selection strings allow you to choose the way in which video+audio quality, file type, codec and more are selected in the download.
+    For help with the format selection available, it is recommended that you use the button below to view the yt-dlp documentation on this subject with examples.
+    By default the format string used is 
+        bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]
+    or 
+        bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w 
+    if strict formatting isn't selected""")
+        customFormatLink = ttk.Button(customFormatFrm, text="Formatting Help", command=lambda e: self.link("https://github.com/yt-dlp/yt-dlp#format-selection"))
+        customFormatBox.config(state=DISABLED)
+        customFormatFrm.pack(side=TOP, fill=BOTH, expand=True)
+        customFormatBox.pack(side=TOP, fill=BOTH, expand=True)
+        customFormatLink.pack(side=BOTTOM)
+        helpBook.add(customFormatFrm, text="Custom format selection", underline=0)
 
     def time(self):
         if hasattr(self, "time_window"):
@@ -485,43 +515,43 @@ class Application(ThemedTk):
         else:
             self.yt_download_win = OutWin(self, "yt", f"Download Output - {self.appConfig['dir']}", block=False, setGrab=True, deleteOnClose=self.appConfig['prefs']['outwin_mode'])
             self.log_debug("Created yt win")
-    def yt_download(self, toDisable: ttk.Button, run=1):
-        toDisable.config(state=DISABLED)
+    def yt_download(self, run=1): #toDisable: ttk.Button, run=1):
+        # toDisable.config(state=DISABLED)
         def progress_hook(d: dict):
             def inner_hook(d: dict):
                 if d['status'] == 'downloading':
-                    if not self.appConfig['prefs']['disable_percentage']:
-
                         try:
-                            if d['total_bytes'] != None:
+                            if d.get('total_bytes', None) != None:
                                 self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes']
+                            else:
+                                self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes_estimate']
                         except Exception as e:
-                            self.yt_download_win.errRedir.old_stderr.write(f"WARNING: Progess bar unavailable; {e}\n")
+                            self.log_debug(f"WARNING: Progess bar unavailable; {e}\n")
                         else:
-                            self.yt_download_win.percent.set(f"{round(self.yt_download_win.progress['value']*100, 1)}%")
-                    if not self.appConfig['prefs']['disable_stats']:
-                        MiB_done=d['downloaded_bytes']/1048576
-                        self.log_debug(MiB_done)
-                        if d['total_bytes'] != None:
-                            self.log_debug(MiB_done/d['elapsed'])
-                            self.log_debug(d['total_bytes']/1048576)
-                            self.yt_download_win.stat.set(f"{round(MiB_done, 1)}MiB/{round(d['total_bytes']/1048576, 1)}MiB @ {round(MiB_done/d['elapsed'], 1)}MiB/s")
+                            self.yt_download_win.percent.set(d['_percent_str'])
+                        self.log_debug(d['_downloaded_bytes_str'])
+                        self.log_debug(d['_speed_str'])
+                        if d.get('total_bytes', None) != None:
+                            self.log_debug(d['_total_bytes_str'])
+                        else:
+                            self.log_debug(d['_total_bytes_estimate_str'])
+                        self.yt_download_win.stat.set(str(d['_default_template']))
                 elif d['status'] == 'finished':
                     try:
-                        print(f"Finished downloading {d['total_bytes']} bytes in {d['elapsed']} seconds")
+                        print(f"Finished downloading {d['_total_bytes_str']} in {d['elapsed']} seconds")
                     except:
                         print("Download finished")
                     finally:
                         self.yt_download_win.progress['value'] = 0
                         self.yt_download_win.percent.set("Download Complete! - Finishing up")
-                        tot=round(d['total_bytes']/1048576, 1)
-                        self.yt_download_win.stat.set(f"{tot}MiB/{tot}MiB @ 0MiB/s")
+                        tot=d['_total_bytes_str']
+                        self.yt_download_win.stat.set(f"{tot}/{tot} @ 0MiB/s")
             t = threading.Thread(target=inner_hook, args=[d]).start()
         if not os.path.exists(os.path.join(self.dataPath, "archive.txt")):
             open(os.path.join(self.dataPath, "archive.txt"), "w").close() # Create archive if it doesn't exist
         opts = {"default_search": "auto", 
         "outtmpl": f"{self.appConfig['dir']}\\%(upload_date)s-%(uploader)s-%(title)s.%(ext)s",
-        "format": f"bestvideo[height<=?{self.appConfig['opts']['resolution']}][ext=mp4]+bestaudio[ext=m4a]/best[height<=?{self.appConfig['opts']['resolution']}][ext=mp4]/best[ext=mp4]/best", 
+        "format": f"bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]",
         "ffmpeg_location": self.relative_path("ffmpeg-20200115-0dc0837-win64-static\\bin"),
         "cookiefile": self.relative_path("Logs\\cookies.txt"),
         "writethumbnail": self.appConfig['opts']['thumbnail'], 
@@ -534,12 +564,19 @@ class Application(ThemedTk):
         "progress_hooks": [], 
         "postprocessors": [],
         "verbose": self.appConfig['prefs']['verbosity']} or self.debug
-        if self.appConfig['opts']['audio']: opts['postprocessors'].append({'key': 'FFmpegExtractAudio'})
+        if self.appConfig['opts']['format_string'].strip() != "":
+            opts['format'] = self.appConfig['opts']['format_string']
+        elif self.appConfig['opts']['video_format'] == "best":
+            opts['format'] = f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
+        elif not self.appConfig['opts']['strict_format']:
+            opts['format'] = opts['format'] + f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
+        print("[Format] " + opts['format'])
+        if self.appConfig['opts']['audio']: opts['postprocessors'].append({'key': 'FFmpegExtractAudio', 'preferredcodec': self.appConfig['opts']['audio_format']})
         if self.appConfig['opts']['metadata']: opts['postprocessors'].append({'key': 'FFmpegMetadata'})
         # if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False, "atomic_path": self.relative_path("AtomicParsley-win32-0.9.0/AtomicParsley.exe")})#"./AtomicParsley-win32-0.9.0/AtomicParsley.exe"})
         if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
         if self.appConfig['opts']['subtitles']: opts['postprocessors'].append({'key': 'FFmpegEmbedSubtitle'})
-        if self.appConfig['prefs']['disable_stats'] == False or self.appConfig['prefs']['disable_percentage'] == False: 
+        if self.appConfig['prefs']['disable_stats'] == False: 
             self.log_debug("Added progress hook")
             opts['progress_hooks'].append(progress_hook)
         ytdl = YoutubeDL(opts)
@@ -566,17 +603,20 @@ class Application(ThemedTk):
             elif not i.strip() == "" and not i.strip().startswith("#"): 
                 items.append(i)
         if items[-1].strip() == "": items = items[:-1]
-        messagebox.showwarning("Starting Download", "This may take some time...", parent=self.yt_download_win)
         self.running = True
         if not self.appConfig['prefs']['print_log']: self.disable_insert(self.yt_download_win.outText, END, "Check console window if you want to see output")
         for a in range(run):
             if self.appConfig['prefs']['parallel'] == False:
                 ytdl.download(items)
             else:
+                threads: List[threading.Thread] = []
                 for i in items:
                     th = threading.Thread(target=ytdl.download, args=[[i]])
                     th.start()
-                th.join()
+                    threads.append(th)
+                for i in threads:
+                    if i.is_alive():
+                        i.join()
             
             if self.appConfig['prefs']['remove_success'] or self.debug:
                 ltext: list = self.mainText.get("1.0", END).split("\n")
@@ -601,17 +641,11 @@ class Application(ThemedTk):
             with open(os.path.join(self.dataPath, "archive.txt"), "w") as f: 
                 f.truncate(0)
                 f.close()
-            self.yt_download_win.outRedir.old_stdout.write(f"Finished run {a+1}\n")
             if a < run - 1: print("------------\n------------")
         self.running=False
-        try:
-            toDisable.config(state=NORMAL)
-        except:
-            print("Process unfinished... Window closed early")
-        else:
-            self.yt_download_win.percent.set("All videos downloaded successfully (window may be closed)")
-            print("Process finished successfully\nWindow may be closed...", end="")
-            messagebox.showinfo("Download finished", "Download finished successfully", parent=self.yt_download_win)
+        self.yt_download_win.percent.set("All videos downloaded successfully (window may be closed)")
+        print("Process finished successfully\nWindow may be closed...", end="")
+        messagebox.showinfo("Download finished", "Download finished successfully", parent=self.yt_download_win)
         
     def get_items(self, urn):
         """This gathers items to be downloaded based on the specified search query or url (youtube and spotify only)
@@ -694,22 +728,44 @@ class Application(ThemedTk):
             self.appConfig['opts']['metadata'] = metad.get()
             self.appConfig['opts']['thumbnail'] = thumb.get()
             self.appConfig['opts']['audio'] = audio.get()
-            self.appConfig['opts']['resolution'] = int(resolBox.get())
+            self.appConfig['opts']['video_format'] = videoFormat.get()
+            self.appConfig['opts']['audio_format'] = audioFormat.get()
+            self.appConfig['opts']['strict_format'] = strictFormat.get()
+            self.appConfig['opts']['resolution'] = int(resolBox.get().strip())
+            self.appConfig['opts']['format_string'] = format.get().strip()
             self.write_config()
+
+        optsBook = ttk.Notebook(self.oWin)
+        optsBook.enable_traversal()
+        optsBook.pack(side=TOP, expand=True, fill=BOTH)
+        optsFrm = ttk.Frame(optsBook)
+        optsFrm.pack(expand=True, side=TOP, fill=BOTH)
         descr = BooleanVar(self.oWin, value=self.appConfig['opts']['description'])
-        descrBox = ttk.Checkbutton(self.oWin, variable=descr, command=update_opts, text=" - Download .description file")
+        descrBox = ttk.Checkbutton(optsFrm, variable=descr, command=update_opts, text=" - Download .description file")
         subti = BooleanVar(self.oWin, value=self.appConfig['opts']['subtitles'])
-        subtiBox = ttk.Checkbutton(self.oWin, variable=subti, command=update_opts, text=" - Embed subtitles")
+        subtiBox = ttk.Checkbutton(optsFrm, variable=subti, command=update_opts, text=" - Embed subtitles")
         thumb = BooleanVar(self.oWin, value=self.appConfig['opts']['thumbnail'])
-        thumbBox = ttk.Checkbutton(self.oWin, variable=thumb, command=update_opts, text=" - Embed Thumbnail")
+        thumbBox = ttk.Checkbutton(optsFrm, variable=thumb, command=update_opts, text=" - Embed Thumbnail")
         metad = BooleanVar(self.oWin, value=self.appConfig['opts']['metadata'])
-        metadBox = ttk.Checkbutton(self.oWin, variable=metad, command=update_opts, text=" - Add metadata")
+        metadBox = ttk.Checkbutton(optsFrm, variable=metad, command=update_opts, text=" - Add metadata")
         audio = BooleanVar(self.oWin, value=self.appConfig['opts']['audio'])
-        audioBox = ttk.Checkbutton(self.oWin, variable=audio, command=update_opts, text=" - Extract audio")
-        resolFrm = ttk.Frame(self.oWin)
+        audioBox = ttk.Checkbutton(optsFrm, variable=audio, command=update_opts, text=" - Extract audio")
+        resolFrm = ttk.Frame(optsFrm)
         resolLbl = ttk.Label(resolFrm, text=" - Max resolution")
-        resolBox = ttk.Spinbox(resolFrm, values=[480, 720, 1080, 2160], command=update_opts)
+        resolBox = ttk.Spinbox(resolFrm, values=[480, 720, 1080, 1440, 2160], command=update_opts)
         resolBox.set(self.appConfig['opts']['resolution'])
+
+        videoFormat = StringVar(self.oWin, value=self.appConfig['opts']['video_format'])
+        videoFormatFrm = ttk.Frame(optsFrm)
+        videoFormatLbl = ttk.Label(videoFormatFrm, text=" - Preferred video extract format")
+        videoFormatBox = ttk.OptionMenu(videoFormatFrm, videoFormat, videoFormat.get(), "best", "mp4", "mkv", "mov", "webm", command=update_opts)
+        audioFormat = StringVar(self.oWin, value=self.appConfig['opts']['audio_format'])
+        audioFormatFrm = ttk.Frame(optsFrm)
+        audioFormatLbl = ttk.Label(audioFormatFrm, text=" - Preferred audio extract format")
+        audioFormatBox = ttk.OptionMenu(audioFormatFrm, audioFormat, audioFormat.get(), "best", "mp3", "m4a", "aac", "opus", command=update_opts)
+
+        strictFormat = BooleanVar(self.oWin, value=self.appConfig['opts']['strict_format'])
+        strictFormatBox = ttk.Checkbutton(optsFrm, variable=strictFormat, command=update_opts, text=" - Selected format only")
         descrBox.grid(column=0, row=0, sticky=NW)
         subtiBox.grid(column=0, row=1, sticky=NW)
         thumbBox.grid(column=0, row=2, sticky=NW)
@@ -718,7 +774,31 @@ class Application(ThemedTk):
         resolFrm.grid(column=0, row=5, sticky=NW)
         resolBox.grid(column=0, row=0)
         resolLbl.grid(column=1, row=0)
-        ttk.Label(self.oWin, text="NOTE: Some options may cause undesirable behaviours on platforms other than YT.\nE.g. twitch's description is the stream JSON.").grid(column=0, row=5)
+        videoFormatFrm.grid(column=0, row=6, sticky=NW)
+        videoFormatBox.grid(column=0, row=0)
+        videoFormatLbl.grid(column=1, row=0)
+        audioFormatFrm.grid(column=0, row=7, sticky=NW)
+        audioFormatBox.grid(column=0, row=0)
+        audioFormatLbl.grid(column=1, row=0)
+        strictFormatBox.grid(column=0, row=8, sticky=NW)
+        optsBook.add(optsFrm, text="General", underline=0)
+
+        advancedFrm = ttk.Frame(optsBook)
+        format = StringVar(self.oWin, value=self.appConfig['opts']['format_string'])
+        formatFrm = ttk.Frame(advancedFrm)
+        formatLbl = ttk.Label(formatFrm, text="Format selection string (empty=default): ")
+        formatBox = ttk.Entry(formatFrm, textvariable=format)
+        format.set(self.appConfig['opts']['format_string'])
+        saveBtn = ttk.Button(advancedFrm, command=update_opts, text="Save options")
+        formatFrm.grid(row=0, column=0, sticky=NW)
+        formatLbl.grid(row=0, column=0)
+        formatBox.grid(row=0, column=1)
+        ttk.Label(advancedFrm, text="WARNING: Altering these options may affect the operation of other options and preferences!", foreground="red").grid(row=2, column=0, sticky=NW)
+        ttk.Label(advancedFrm, text="For help with options, visit the help and instructions section of the app.").grid(row=3, column=0, sticky=NW)
+        saveBtn.grid(column=0, row=6, sticky=S)
+        optsBook.add(advancedFrm, text="Pro mode", underline=0)
+        
+        ttk.Label(self.oWin, text="NOTE: Some options may cause undesirable behaviours on platforms other than YT.\nE.g. twitch's description is the stream JSON.").pack(side=BOTTOM, expand=True, fill=BOTH)
     def update_theme(self, theme):
         ttk.Style().theme_use(theme)
         self.set_theme(theme, self.backgrounds[theme], self.backgrounds[theme])
@@ -761,11 +841,10 @@ class Application(ThemedTk):
             self.appConfig['prefs']['update_launch'] = checkUp.get()
             self.appConfig['prefs']['remove_success'] = rem.get()
             self.appConfig['prefs']['disable_stats'] = disStat.get()
-            self.appConfig['prefs']['disable_percentage'] = disPerc.get()
             self.update_theme(theme.get())
             self.write_config()
         def reset_prefs(arg=None):
-            self.appConfig['prefs'] = {"font": self.appConfig['prefs']['font'], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 0, "update_launch": True, "disable_stats": False, "disable_percentage": False}
+            self.appConfig['prefs'] = {"font": self.appConfig['prefs']['font'], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 1, "update_launch": True, "disable_stats": False}
             para.set(self.appConfig['prefs']['parallel'])
             theme.set(self.appConfig['prefs']['theme'])
             log.set(self.appConfig['prefs']['print_log'])
@@ -774,7 +853,6 @@ class Application(ThemedTk):
             checkUp.set(self.appConfig['prefs']['update_launch'])
             rem.set(self.appConfig['prefs']['remove_success'])
             disStat.set(self.appConfig['prefs']['disable_stats'])
-            disPerc.set(self.appConfig['prefs']['disable_percentage'])
             self.update_theme(theme.get())
             self.write_config()
         resetBtn = ttk.Button(self.pWin, text="Reset Prefs", command=reset_prefs)
@@ -812,21 +890,18 @@ class Application(ThemedTk):
         remBox = ttk.Checkbutton(advFrm, variable=rem, command=update_prefs, text=" - Remove successful downloads from list")
         disStat=BooleanVar(self.pWin, self.appConfig['prefs']['disable_stats'])
         disStatBox=ttk.Checkbutton(advFrm, variable=disStat, command=update_prefs, text=" - Disable download statistics (improves download speed)")
-        disPerc=BooleanVar(self.pWin, value=self.appConfig['prefs']['disable_percentage'])
-        disPercBox=ttk.Checkbutton(advFrm, variable=disPerc, command=update_prefs, text=" - Disable download percentage bar (still available in output, improves download speed)")
         verbBox.grid(column=0, row=0, sticky=NW)
         rerunBox.grid(column=0, row=1, sticky=NW)
         remBox.grid(column=0, row=2, sticky=NW)
         disStatBox.grid(column=0, row=3, sticky=NW)
-        disPercBox.grid(column=0, row=4, sticky=NW)
         prefBook.add(advFrm, text="Advanced", underline=0)
     def bug(self):
         ans=messagebox.askyesnocancel("Report via email?", "Would you like to report a bug by email.\nYes: report by email\nNo: report on github", parent=self)
         if ans==True:
-            os.startfile("mailto:16JohnA28@gmail.com")
+            self.link("mailto:16JohnA28@gmail.com")
             self.log_debug("Email report.")
         elif ans==False:
-            os.startfile("https://github.com/MrTransparentBox/ytdl-gui/issues/new")
+            self.link("https://github.com/MrTransparentBox/ytdl-gui/issues/new")
             self.log_debug("Github report.")
         else:
             self.log_debug("Cancelled report.")
@@ -883,187 +958,28 @@ class Application(ThemedTk):
     def font_to_list(self):
         self.appConfig['prefs']['font'] = [self.curr_font.actual("family"), self.curr_font.actual("size"), self.curr_font.actual("weight"), self.curr_font.actual("slant"), self.curr_font.actual("underline"), self.curr_font.actual("overstrike")]
         self.write_config()
-class StderrRedirect(object):
-    """A Class that redirects `sys.stderr` to itself and allows writing to a Tkinter `Text` widget.  
 
-    Parametres:
-    ----------
-    `t` - The `Text` box to redirect to
 
-    ----------
-    !! ENSURE YOU USE `close()` TO RESET STDERR TO ITS ORIGINAL STATE !!"""
-    def __init__(self, t: Text, interactive: bool = True, msgbox: bool = False, master=None):
-        self.old_stderr = sys.stderr
-        self.text_box = t
-        self.interactive = interactive
-        self.open=True
-        self.master=master
-        sys.stderr = self
-        self.msgbox=msgbox
-    def write(self, s: str):
-        if self.msgbox and "warning" in s.lower():
-            messagebox.showwarning("Warning", s, parent=self.master)
-        elif self.msgbox and "error" in s.lower():
-            messagebox.showerror("Error", s, parent=self.master)
-        elif self.msgbox:
-            messagebox.showinfo("Issue", s, parent=self.master)
-        else:
-            try:
-                self.text_box.config(state=NORMAL)
-                if s.startswith("\r"):
-                    self.text_box.delete("end-1c linestart", "end")
-                    self.text_box.insert(END, f"\n{s}")
-                    self.text_box.see(END)
-                else:
-                    self.text_box.insert(END, s)
-                    self.text_box.see(END)
-                self.text_box.config(state=DISABLED)
-            except (TclError, RuntimeError) as e:
-                if "main thread is not in main loop" in str(e):
-                    sys.exit(e)
-                self.old_stderr.write(f"OLD: '{s}'\n")
-                if self.open: self.close()
-    def flush(self):
-        pass
-    def writelines(self, lines):
-        self.text_box.config(state=NORMAL)
-        self.text_box.insert(END, "\n".join(lines))
-        self.text_box.see(END)
-        self.text_box.config(state=DISABLED)
-    def close(self):
-        sys.stderr = self.old_stderr
-        self.open=False
-        del self
-    def isatty(self):
-        return self.interactive
-class StdoutRedirect(object):
-    """A Class that redirects `sys.stdout` to itself and allows writing to a Tkinter `Text` widget.  
+appVersion = "2023.07.03.f1"
 
-    Parametres:
-    ----------
-    `t` - The `Text` box to redirect to
-    
-    ----------
-    !! ENSURE YOU USE `close()` TO RESET STDOUT TO ITS ORIGINAL STATE !!"""
-    def __init__(self, t: Text, interactive: bool = True):
-        self.old_stdout = sys.stdout
-        self.text_box = t
-        self.interactive = interactive
-        self.open=True
-        sys.stdout = self
-    def write(self, s: str):
-        try:
-            self.text_box.config(state=NORMAL)
-            if s.startswith("\r"):
-                self.text_box.delete("end-1c linestart", "end")
-                self.text_box.insert(END, f"\n{s}")
-                self.text_box.see(END)
-            else:
-                self.text_box.insert(END, s)
-                self.text_box.see(END)
-            self.text_box.config(state=DISABLED)
-        except TclError:
-            self.old_stdout.write(f"OLD: '{s}'\n")
-            if self.open: self.close()
-    def flush(self):
-        pass
-    def writelines(self, lines):
-        self.text_box.config(state=NORMAL)
-        self.text_box.insert(END, "\n".join(lines))
-        self.text_box.see(END)
-        self.text_box.config(state=DISABLED)
-    def close(self):
-        sys.stdout = self.old_stdout
-        self.open=False
-        del self
-    def isatty(self):
-        return self.interactive
-class OutWin(Toplevel):
-    def __init__(self, master: Application, mode: str, title="New window", geometry: str = "900x550", block=True, setGrab=True, deleteOnClose=1):
-        Toplevel.__init__(self, master)
-        self.config(bg=master.backgrounds[master.appConfig['prefs']['theme']])
-        self.master = master
-        self.block=block
-        self.setGrab = setGrab
-        self.delClose=deleteOnClose
-        self.title(title)
-        self.mode=mode
-        self.clsCount=0
-        self.geometry(geometry)
-        self.textFrm = ttk.Frame(self)
-        self.yScroll = ttk.Scrollbar(self.textFrm)
-        self.outText = Text(self.textFrm, font=self.master.curr_font, yscrollcommand=self.yScroll.set, relief=FLAT, state=DISABLED)
-        self.yScroll.config(command=self.outText.yview)
-        if self.master.appConfig['prefs']['print_log']: 
-            self.outRedir = StdoutRedirect(self.outText)
-            self.errRedir = StderrRedirect(self.outText, master=self)
-        if self.mode == "yt":
-            self.btnStart = ttk.Button(self, text="Start Download", command=self.task)
-            self.yt_frm = ttk.Frame(self)
-            self.progress = ttk.Progressbar(self.yt_frm, length=600, mode='determinate', maximum=1, value=0)
-            self.progress.grid(column=0, row=0, padx=3)
-            self.stat=StringVar(self.yt_frm, value="0MiB/0MiB @ 0MiB/s")
-            ttk.Label(self.yt_frm, textvariable=self.stat, font=font.Font(size=14)).grid(column=1, row=0, padx=3)
-            self.percent=StringVar(self.yt_frm, value=f"{self.progress['value']*100}%")
-            ttk.Label(self.yt_frm, font=font.Font(size=10), textvariable=self.percent).grid(column=0, row=0)
-            self.yt_frm.pack(side=TOP, pady=7.5)
-        elif self.mode == "time":
-            self.btnStart = ttk.Button(self, text="Start Duration Scan", command=self.task)
-        else:
-            print(f"mode '{self.mode}' incorrect")
-        self.btnStart.pack(side=BOTTOM)
-        self.textFrm.pack(side=TOP, expand=True, fill=BOTH)
-        self.yScroll.pack(fill=Y, side=RIGHT)
-        self.outText.pack(expand=True, fill=BOTH)
-        self.iconbitmap(self.master.relative_path("Resources\\YTDLv2_256.ico"))
-        self.protocol("WM_DELETE_WINDOW", self.outWin_close)
-        self.focus_set()
-        if self.setGrab: self.grab_set()
-    def outWin_close(self, event=None):
-        self.master: Application=self.master
-        if self.master.running and self.block:
-            messagebox.showerror("Cannot close", "Unable to close window while download is in progress.", parent=self)
-            return
-        elif self.master.running and self.delClose == 1:
-            messagebox.showwarning("Download not stopped...", "Download logs continue in the console.", parent=self)
-        self.grab_release()
-        if self.delClose == 1: # Do delete
-            self.destroy()
-            self.outRedir.close()
-            self.errRedir.close()
-            if self.mode == "yt" and hasattr(self.master, "yt_download_win"): 
-                self.master.yt_download_win.destroy()
-                del self.master.yt_download_win
-                self.master.log_debug("Deleted yt win")
-            elif self.mode == "time" and hasattr(self.master, "time_window"):
-                self.master.time_window.destroy()
-                del self.master.time_window
-                self.master.log_debug("Deleted time win")
-        elif self.delClose == 0: # Don't delete
-            self.withdraw()
-            self.master.log_debug("Withdrawn")
-        self.master.focus_set()
-    def task(self):
-        if self.mode == "yt" and self.master.appConfig['prefs']['rerun']:
-            self.t = threading.Thread(target=self.master.yt_download, args=[self.btnStart, 2])
-        elif self.mode == "yt":
-            self.t = threading.Thread(target=self.master.yt_download, args=[self.btnStart])
-        elif self.mode == "time":
-            self.t = threading.Thread(target=self.master.start_time)
-        else:
-            print(f"mode '{self.mode}' incorrect")
-            return
-        self.t.start()
-appVersion = "2023.05.01.f2"
 notes = f"""Youtube-dl GUI v{appVersion}
-- Removed missing themes
-- Upgraded from youtube-dl to yt-dlp due to some issues
-- Removed need to restart for theme application
-- Improved theme handling to properly set background after restart
-- Optimised progress hook for download speed
-- Option to remove successful downloads now works
-- Moved other classes into separate files
-- Added instruction button in help"""
+Minor:
+ - Fixed github authorisation
+ - Update window re-focuses after saving
+ - Download and time list now start automatically when the window opens.
+ - Download stops if output window is closed.
+ - Fixed spotipy support
+ - Removed python console window
+ - New format selection string
+ - Modified installer & auto-update
+
+New Features:
+ - Added download options to specify which file formats to prefer 
+ - Added option to make formats strictly downloaded (fail if not available)
+ - Advanced download option to allow users to choose their own format selection string
+ - Added help for formatting strings
+ - File size estimation in output if accurate value isn't available
++ other goodies"""
 def main(args: argparse.Namespace):
     if args.notes:
         print(notes)
@@ -1074,6 +990,7 @@ def main(args: argparse.Namespace):
         sys.exit(f"File {args.path} doesn't exist")
     else:
         p = os.path.abspath(args.path)
+    print("Loading Modules...")
     if args.debug: print(sys.argv)
     app = Application("1080x600", args.debug, p, appVersion)
     try:
