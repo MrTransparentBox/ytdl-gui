@@ -666,10 +666,10 @@ class Application(ThemedTk):
             elif "playlist" in urn:
                 try:
                     results = self.spotify.playlist_items(urn, fields="items(track)", market="from_token")
-                except:
-                    print(f"Couldn't find the requested playlist (Invalid playlist url/uri - {urn})")
+                except Exception as ex: 
+                    print(f"Couldn't find the requested playlist (Invalid playlist url/uri - {urn})\n{ex}")
                     return
-                return [f"{track['track']['name']} {track['track']['artists'][0]['name']}" for track in results['tracks']['items']]
+                return [f"{track['track']['name']} {track['track']['artists'][0]['name']}" for track in results['items']]
             elif "artist" in urn:
                 try:
                     results = self.spotify.artist_top_tracks(urn, country="from_token")
@@ -960,26 +960,11 @@ class Application(ThemedTk):
         self.write_config()
 
 
-appVersion = "2023.07.03.f1"
+appVersion = "2023.07.03.f2"
 
 notes = f"""Youtube-dl GUI v{appVersion}
 Minor:
- - Fixed github authorisation
- - Update window re-focuses after saving
- - Download and time list now start automatically when the window opens.
- - Download stops if output window is closed.
- - Fixed spotipy support
- - Removed python console window
- - New format selection string
- - Modified installer & auto-update
-
-New Features:
- - Added download options to specify which file formats to prefer 
- - Added option to make formats strictly downloaded (fail if not available)
- - Advanced download option to allow users to choose their own format selection string
- - Added help for formatting strings
- - File size estimation in output if accurate value isn't available
-+ other goodies"""
+ - Fixed spotify playlist error"""
 def main(args: argparse.Namespace):
     if args.notes:
         print(notes)
