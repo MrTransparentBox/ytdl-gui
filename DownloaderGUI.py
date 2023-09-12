@@ -95,7 +95,8 @@ class Application(ThemedTk):
         os.environ['SPOTIPY_REDIRECT_URI'] = "http://localhost:8000/authorise"
         if self.appConfig['spotify_enabled'] == True:
             self.log_debug("Enabling spotify...")
-            self.PKCE_Man = spotipy.SpotifyPKCE(scope="playlist-read-private,playlist-read-collaborative")
+            self.sp_cache = spotipy.CacheFileHandler(os.path.join(self.dataPath, ".tokencache"))
+            self.PKCE_Man = spotipy.SpotifyPKCE(scope="playlist-read-private,playlist-read-collaborative", cache_handler=self.sp_cache)
             self.spotify = spotipy.Spotify(auth_manager=self.PKCE_Man)
         self.title(f"Youtube-dl GUI - {str(self.appConfig['dir'])}")
         self.iconbitmap(self.relative_path("Resources\\YTDLv2_256.ico"))
@@ -794,7 +795,6 @@ Solution - If the error box says \"retrying\", press ok and the downloader will 
         Returns: False for errors or the list of search queries"""
         if "spotify.com" in urn:
             self.log_debug("Is spotify url")
-            self.log_debug(urn)
             if "track" in urn:
                 try:
                     results = self.spotify.track(urn, market="from_token")
