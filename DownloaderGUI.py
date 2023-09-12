@@ -1,4 +1,3 @@
-#!/usr/bin/env D:\alexj\VSCode\Python\YTDL\.venv
 """This is a script to generate an easy to use GUI for the youtube-dl package.
 
 This is usually bundled into an executable with pyinstaller (or similar) for ease of use to non-python users.  
@@ -15,6 +14,7 @@ from yt_dlp import YoutubeDL # pylint: disable=import-error
 from models.GetStats import GetStats
 from models.Font_wm import Font_wm
 from models.OutWin import OutWin
+from models.Constants import *
 class Application(ThemedTk):
     """Base application window and functions for the Youtube-dl GUI
 
@@ -49,8 +49,7 @@ class Application(ThemedTk):
                 self.appConfig={}
             f.close()
 
-        self.defaultConfig: dict={"dir": "", "spotify_enabled": False, "prefs": {"font": ["Arial", 14, "normal", "roman", 0, 0], "parallel": False, "print_log": True, "theme": "vista", "verbosity": False, "remove_success": False, "rerun": False, "outwin_mode": 1, "update_launch": True, "disable_stats": False, "disable_percentage": False}, "opts": {"resolution": 1080, "subtitles": True, "metadata": True, "thumbnail": True, "description": False, "audio": False, "video_format": "best", "audio_format": "best", "strict_format": False, "format_string": ""}}
-        for k, v in self.defaultConfig.items():
+        for k, v in DEFAULT_CONFIG.items():
             if self.appConfig.get(k, None) == None:
                 self.appConfig[k] = v
             if type(v) == dict:
@@ -58,7 +57,7 @@ class Application(ThemedTk):
                     if dict(self.appConfig.get(k, None)).get(k2, None) == None:
                         self.appConfig[k][k2] = v2
         if self.appConfig == {}:
-            self.appConfig=self.defaultConfig
+            self.appConfig=DEFAULT_CONFIG
             self.write_config()
         if self.path == None:
             self.path = os.path.abspath(os.path.join(self.dataPath, "ToDownload.ytdl"))
@@ -86,6 +85,7 @@ class Application(ThemedTk):
                 sys.exit(f"Themes: {', '.join(difference)} \nare unavailable")
         del ths, self.availThemes
         if str(self.appConfig["dir"]).strip() == "":
+            messagebox.showinfo("No download target selected", "Please select a fold to download your files into.")
             ans = filedialog.askdirectory(parent=self, title="Select Download Directory...")
             if ans.strip() == "":
                 sys.exit("No Directory given...")
@@ -166,6 +166,7 @@ class Application(ThemedTk):
         self.toolMenu.add_command(label="Current File", command=self.curr_file)
         self.toolMenu.add_command(label="Current Directory", command=self.curr_dir)
         self.toolMenu.add_command(label="Change Directory...", command=self.change_dir)
+        self.toolMenu.add_command(label="Clear archive", command=self.clear_archive)
         self.toolMenu.add_separator()
         self.toolMenu.add_command(label="Download Options...", command=self.options_win)
         self.toolMenu.add_separator()
@@ -298,6 +299,10 @@ class Application(ThemedTk):
             elif sp1[i] == sp2[i] and i == ver1.count("."):
                 return "="
         raise Exception("Something went wrong and the comparisons didn't match.")
+    def clear_archive(self):
+        with open(os.path.join(self.dataPath, "archive.txt"), "w") as f:
+            f.truncate(0)
+            f.close()
     def check_update(self, start_up: bool=False):
         updateBtn = None
         def update_Win():
@@ -476,24 +481,52 @@ class Application(ThemedTk):
     def openHelp(self):
         self.helpWin = Toplevel(self, background=self.backgrounds[self.appConfig['prefs']['theme']])
         self.helpWin.title("Youtube-dl GUI - Help")
+        self.helpWin.iconbitmap(self.relative_path("Resources\\YTDLv2_256.ico"))
         helpBook = ttk.Notebook(self.helpWin)
         helpBook.enable_traversal()
         helpBook.pack(side=TOP, fill=BOTH, expand=True)
+        commonErrorFrm = ttk.Frame(helpBook)
+        commonErrorBox = Text(commonErrorFrm)
+        commonErrorBox.insert(INSERT, """Error - Download freezes mid-way, then I get \"urlopen error timeout\"
+Cause - This is caused by a slow connection or a connection drop-out, and the download timing out.
+Solution - If the error box says \"retrying\", press ok and the downloader will try to re-establish the connection.""")
+        commonErrorBox.config(state=DISABLED)
+        commonErrorFrm.pack(side=TOP, fill=BOTH, expand=True)
+        commonErrorBox.pack(side=TOP, fill=BOTH, expand=True)
+        helpBook.add(commonErrorFrm, text="Common errors", underline=0)
+
         customFormatFrm = ttk.Frame(helpBook)
         customFormatBox = Text(customFormatFrm)
         customFormatBox.insert(INSERT, """Custom format selection strings allow you to choose the way in which video+audio quality, file type, codec and more are selected in the download.
     For help with the format selection available, it is recommended that you use the button below to view the yt-dlp documentation on this subject with examples.
-    By default the format string used is 
-        bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]
-    or 
-        bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w 
-    if strict formatting isn't selected""")
-        customFormatLink = ttk.Button(customFormatFrm, text="Formatting Help", command=lambda e: self.link("https://github.com/yt-dlp/yt-dlp#format-selection"))
+    By default the format string used is isn't used, and the best available format is selected automatically based on the options selected, but would look like this:
+        b[height<=?resolution}][ext=video_format}]/w[ext=video_format}]/bv*[height<=?resolution}]+ba/b[height<=?resolution}]/wv*+ba/w""")
+        customFormatLink = ttk.Button(customFormatFrm, text="Formatting Help", command=lambda: self.link("https://github.com/yt-dlp/yt-dlp#format-selection"))
         customFormatBox.config(state=DISABLED)
         customFormatFrm.pack(side=TOP, fill=BOTH, expand=True)
         customFormatBox.pack(side=TOP, fill=BOTH, expand=True)
         customFormatLink.pack(side=BOTTOM)
         helpBook.add(customFormatFrm, text="Custom format selection", underline=0)
+
+        outputTemplateFrame = ttk.Frame(helpBook)
+        outputTemplateBox = Text(outputTemplateFrame)
+        outputTemplateBox.insert(INSERT, """Output templates allow you to customise the filename of the download.
+    Documentation is available on the yt-dlp github page, and is recommended to be viewed using the button below.
+    The default template used is
+        %(title)s-%(uploader)s-%(upload_date)s.%(ext)s
+    The main variables available are in the format %(variable)s, and are as follows:
+        title: The title of the video
+        uploader: The uploader of the video
+        upload_date: The date the video was uploaded
+        ext: The file extension of the video
+        id: The video identifier
+        description: The description of the video""")
+        outputTemplateLink = ttk.Button(outputTemplateFrame, text="Output Template Help", command=lambda: self.link("https://github.com/yt-dlp/yt-dlp#output-template"))
+        outputTemplateBox.config(state=DISABLED)
+        outputTemplateFrame.pack(side=TOP, fill=BOTH, expand=True)
+        outputTemplateBox.pack(side=TOP, fill=BOTH, expand=True)
+        outputTemplateLink.pack(side=BOTTOM)
+        helpBook.add(outputTemplateFrame, text="Output template", underline=0)
 
     def time(self):
         if hasattr(self, "time_window"):
@@ -501,9 +534,10 @@ class Application(ThemedTk):
             if self.time_window.setGrab: self.time_window.grab_set()
             self.log_debug("Unwithdrawn time win")
         else:
-            self.time_window = OutWin(self, "time", f"List Time Output - {self.appConfig['dir']}", block=False, deleteOnClose=1)
+            self.time_window = OutWin(self, "time", f"List Time Output - {self.appConfig['dir']}", block=False, deleteOnClose=1, beginTask=False)
             self.stats = GetStats(self.appConfig['dir'])
             self.log_debug("Created time win")
+        self.time_window.task()
     def yt_win(self):
         if self.ask_save() == None: return
 
@@ -515,6 +549,87 @@ class Application(ThemedTk):
         else:
             self.yt_download_win = OutWin(self, "yt", f"Download Output - {self.appConfig['dir']}", block=False, setGrab=True, deleteOnClose=self.appConfig['prefs']['outwin_mode'])
             self.log_debug("Created yt win")
+    def format_select(self, ctx):
+            """ Select the best video and the best audio that won't result in an mkv."""
+            # formats are already sorted worst to best
+            VIDEO_EXT = self.appConfig['opts']['video_format']
+            AUDIO_EXT = self.appConfig['opts']['audio_format']
+            RESOLUTION = self.appConfig['opts']['resolution']
+            DO_AUDIO = self.appConfig['opts']['audio']
+            STRICT_FORMAT = self.appConfig['opts']['strict_format']
+            formats = ctx.get('formats')[::-1]
+
+            best_audio = None
+            best_video = None
+            
+            if DO_AUDIO:
+                best_audio = next((f for f in formats if f.get('acodec', 'none') != 'none' and f['vcodec'] == 'none' and f['ext'] == AUDIO_EXT), None)
+                if best_audio == None:
+                    best_audio = next((f for f in formats if f.get('acodec', 'none') != 'none' and f['vcodec'] == 'none' and f['ext'] == "m4a"), None)
+                print(f"[Format Selection] Using {best_audio['ext']} ({best_audio['format_note']}) only")
+                yield {
+                    'format_id': best_audio["format_id"],
+                    'ext': best_audio['ext'],
+                    'requested_formats': [best_audio],
+                    'protocol': best_audio["protocol"]
+                }
+            else:
+                has_audio = False
+                if VIDEO_EXT != "best":
+                    best_video = next((f for f in formats if f['vcodec'] != 'none' and f.get('acodec', 'none') == 'none' and f['ext'] == VIDEO_EXT and f['height'] <= RESOLUTION), None)
+                    if best_video == None:
+                        best_video = next((f for f in formats if f['vcodec'] != 'none' and f.get('acodec', 'none') != 'none' and f['ext'] == VIDEO_EXT and f['height'] <= RESOLUTION), None)
+                        has_audio = True
+                if not STRICT_FORMAT or VIDEO_EXT == "best":
+                    if best_video == None:
+                        best_video = next((f for f in formats if f['vcodec'] != 'none' and f.get('acodec', 'none') == 'none' and f['height'] <= RESOLUTION), None)
+                    if best_video == None:
+                        best_video = next((f for f in formats if f['vcodec'] != 'none' and f.get('acodec', 'none') != 'none' and f['height'] <= RESOLUTION), None)
+                        has_audio = True
+                    if best_video == None:
+                        best_video = next((f for f in formats[::-1] if f['vcodec'] != 'none' and f.get('acodec', 'none') == 'none'), None)
+                    if best_video == None:
+                        best_video = next((f for f in formats[::-1] if f['vcodec'] != 'none' and f.get('acodec', 'none') != 'none'), None)
+                        has_audio = True
+
+                if best_video == None:
+                    print("No supported video format found")
+                    yield
+                if not has_audio and VIDEO_EXT != "best":
+                # find compatible audio extension
+                    audio_ext = {'mp4': ['m4a'], 'webm': ['webm', 'opus', 'ogg']}[best_video['ext']]
+                    print("!!!!" + str(audio_ext) + "!!!!)")
+                    best_audio = next(f for f in formats if (
+                        f.get('acodec', 'none') != 'none' and f['vcodec'] == 'none' and f['ext'] in audio_ext))
+                elif not has_audio:
+                    best_audio = next((f for f in formats if f.get('acodec', 'none') != 'none' and f['vcodec'] == 'none'), None)
+
+                if best_audio != None and VIDEO_EXT != "best":
+                    print(f"[Format Selection] Merging {best_video['ext']} ({best_video['format_note']}) and {best_audio['ext']} ({best_audio['format_note']})")
+                # These are the minimum required fields for a merged format
+                    yield {
+                        'format_id': f'{best_video["format_id"]}+{best_audio["format_id"]}',
+                        'ext': best_video['ext'],
+                        'requested_formats': [best_video, best_audio],
+                        'protocol': f'{best_video["protocol"]}+{best_audio["protocol"]}'
+                    }
+                elif best_audio != None:
+                    print(f"[Format Selection] Merging {best_video['ext']} ({best_video['format_note']}) and {best_audio['ext']} ({best_audio['format_note']}) into mkv")
+                    yield {
+                        'format_id': f'{best_video["format_id"]}+{best_audio["format_id"]}',
+                        'ext': "mkv",
+                        'requested_formats': [best_video, best_audio],
+                        'protocol': f'{best_video["protocol"]}+{best_audio["protocol"]}'
+                    }
+
+                else:
+                    print(f"[Format Selection] Using {best_video['ext']} ({best_video['format_note']}) only")
+                    yield {
+                        'format_id': best_video["format_id"],
+                        'ext': best_video['ext'],
+                        'requested_formats': [best_video],
+                        'protocol': best_video["protocol"]
+                    }
     def yt_download(self, run=1): #toDisable: ttk.Button, run=1):
         # toDisable.config(state=DISABLED)
         def progress_hook(d: dict):
@@ -523,7 +638,7 @@ class Application(ThemedTk):
                         try:
                             if d.get('total_bytes', None) != None:
                                 self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes']
-                            else:
+                            elif d['total_bytes_estimate'] != 0:
                                 self.yt_download_win.progress['value'] = d['downloaded_bytes'] / d['total_bytes_estimate']
                         except Exception as e:
                             self.log_debug(f"WARNING: Progess bar unavailable; {e}\n")
@@ -538,9 +653,9 @@ class Application(ThemedTk):
                         self.yt_download_win.stat.set(str(d['_default_template']))
                 elif d['status'] == 'finished':
                     try:
-                        print(f"Finished downloading {d['_total_bytes_str']} in {d['elapsed']} seconds")
+                        print(f"Finished downloading {d['_total_bytes_str']} in {d['elapsed']} seconds\n")
                     except:
-                        print("Download finished")
+                        print("Download finished\n")
                     finally:
                         self.yt_download_win.progress['value'] = 0
                         self.yt_download_win.percent.set("Download Complete! - Finishing up")
@@ -550,8 +665,10 @@ class Application(ThemedTk):
         if not os.path.exists(os.path.join(self.dataPath, "archive.txt")):
             open(os.path.join(self.dataPath, "archive.txt"), "w").close() # Create archive if it doesn't exist
         opts = {"default_search": "auto", 
-        "outtmpl": f"{self.appConfig['dir']}\\%(upload_date)s-%(uploader)s-%(title)s.%(ext)s",
-        "format": f"bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]",
+        "outtmpl": f"{self.appConfig['dir']}\\%(title)s-%(uploader)s-%(upload_date)s.%(ext)s",
+        # "format": f"bv*[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/wv*[ext={self.appConfig['opts']['video_format']}]+ba/w[ext={self.appConfig['opts']['video_format']}]",
+        "format": lambda ctx: self.format_select(ctx),
+        # "format": f"b[height<=?{self.appConfig['opts']['resolution']}][ext={self.appConfig['opts']['video_format']}]/w[ext={self.appConfig['opts']['video_format']}]",
         "ffmpeg_location": self.relative_path("ffmpeg-20200115-0dc0837-win64-static\\bin"),
         "cookiefile": self.relative_path("Logs\\cookies.txt"),
         "writethumbnail": self.appConfig['opts']['thumbnail'], 
@@ -565,17 +682,38 @@ class Application(ThemedTk):
         "postprocessors": [],
         "verbose": self.appConfig['prefs']['verbosity']} or self.debug
         if self.appConfig['opts']['format_string'].strip() != "":
-            opts['format'] = self.appConfig['opts']['format_string']
-        elif self.appConfig['opts']['video_format'] == "best":
-            opts['format'] = f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
-        elif not self.appConfig['opts']['strict_format']:
-            opts['format'] = opts['format'] + f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
-        print("[Format] " + opts['format'])
-        if self.appConfig['opts']['audio']: opts['postprocessors'].append({'key': 'FFmpegExtractAudio', 'preferredcodec': self.appConfig['opts']['audio_format']})
-        if self.appConfig['opts']['metadata']: opts['postprocessors'].append({'key': 'FFmpegMetadata'})
-        # if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False, "atomic_path": self.relative_path("AtomicParsley-win32-0.9.0/AtomicParsley.exe")})#"./AtomicParsley-win32-0.9.0/AtomicParsley.exe"})
-        if self.appConfig['opts']['thumbnail']: opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
-        if self.appConfig['opts']['subtitles']: opts['postprocessors'].append({'key': 'FFmpegEmbedSubtitle'})
+            opts['format'] = self.appConfig['opts']['format_string']#
+            self.log_debug("[Format] Using custom format " + self.appConfig['opts']['format_string'])
+        # elif self.appConfig['opts']['audio']:
+        #     opts['format'] = f"ba[ext={self.appConfig['opts']['audio_format']}]/ba"
+        #     if self.appConfig['opts']['audio_format'] == "best":
+        #         opts['format'] = "ba"
+
+        # elif self.appConfig['opts']['video_format'] == "best":
+        #     opts['format'] = f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
+        # elif not self.appConfig['opts']['strict_format']:
+        #     opts['format'] = opts['format'] + f"bv*[height<=?{self.appConfig['opts']['resolution']}]+ba/b[height<=?{self.appConfig['opts']['resolution']}]/wv*+ba/w"
+        if self.appConfig['opts']['output_template'].strip() != "":
+            opts['outtmpl'] = self.appConfig['opts']['output_template']
+            print("[Format] " + opts['format'])
+        if self.appConfig['opts']['audio'] and self.appConfig['opts']['strict_format'] and self.appConfig['opts']['audio_format'] != "best": 
+            # opts['postprocessors'].append({'key': 'FFmpegExtractAudio', 'preferredcodec': self.appConfig['opts']['audio_format']})
+            pass
+        if self.appConfig['opts']['metadata']: 
+            opts['postprocessors'].append({'key': 'FFmpegMetadata'})
+            self.log_debug("Added metadata postprocess")
+        if self.appConfig['opts']['thumbnail']:
+            if self.appConfig['opts']['audio'] and self.appConfig['opts']['audio_format'] in THUMBNAIL_AUDIO_FORMATS:
+                opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
+                self.log_debug("Added thumbnail postprocess")
+            elif not self.appConfig['opts']['audio'] and self.appConfig['opts']['video_format'] in THUMBNAIL_VIDEO_FORMATS:
+                opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
+                self.log_debug("Added thumbnail postprocess")
+                
+            else:
+                print("The selected format doesn't support embedding thumbnails. The images will be left in the download directory.")
+        if self.appConfig['opts']['subtitles']: 
+            opts['postprocessors'].append({'key': 'FFmpegEmbedSubtitle'})
         if self.appConfig['prefs']['disable_stats'] == False: 
             self.log_debug("Added progress hook")
             opts['progress_hooks'].append(progress_hook)
@@ -604,7 +742,8 @@ class Application(ThemedTk):
                 items.append(i)
         if items[-1].strip() == "": items = items[:-1]
         self.running = True
-        if not self.appConfig['prefs']['print_log']: self.disable_insert(self.yt_download_win.outText, END, "Check console window if you want to see output")
+        if not self.appConfig['prefs']['print_log']: 
+            self.disable_insert(self.yt_download_win.outText, END, "Check console window if you want to see output")
         for a in range(run):
             if self.appConfig['prefs']['parallel'] == False:
                 ytdl.download(items)
@@ -664,12 +803,17 @@ class Application(ThemedTk):
                     return
                 return [f"{results['name']} {results['artists'][0]['name']}"]
             elif "playlist" in urn:
+                tracks = []
                 try:
-                    results = self.spotify.playlist_items(urn, fields="items(track)", market="from_token")
+                    results = self.spotify.playlist_items(urn, fields="items(track),total,limit,next", market="from_token")
                 except Exception as ex: 
                     print(f"Couldn't find the requested playlist (Invalid playlist url/uri - {urn})\n{ex}")
                     return
-                return [f"{track['track']['name']} {track['track']['artists'][0]['name']}" for track in results['items']]
+                tracks = [f"{track['track']['name']} {track['track']['artists'][0]['name']}" for track in results['items']]
+                while results['next']:
+                    results = self.spotify.next(results)
+                    tracks.extend([f"{track['track']['name']} {track['track']['artists'][0]['name']}" for track in results['items']])
+                return tracks
             elif "artist" in urn:
                 try:
                     results = self.spotify.artist_top_tracks(urn, country="from_token")
@@ -704,7 +848,6 @@ class Application(ThemedTk):
 
     def start_time(self):
         self.time_window.outText.delete("1.0", END)
-        messagebox.showwarning("Starting Duration Scan", "Please don't close until scan is finished.", parent=self.time_window)
         print("Please be patient while the scan runs...")
         l = self.stats.folder_length()
         self.disable_insert(self.time_window.outText, "1.0", f"Total folder duration for {self.appConfig['dir']}:\n{l['hours']}hrs, {l['minutes']}mins, {l['seconds']}secs\n\nLogs:\n")
@@ -733,6 +876,7 @@ class Application(ThemedTk):
             self.appConfig['opts']['strict_format'] = strictFormat.get()
             self.appConfig['opts']['resolution'] = int(resolBox.get().strip())
             self.appConfig['opts']['format_string'] = format.get().strip()
+            self.appConfig['opts']['output_template'] = output.get().strip()
             self.write_config()
 
         optsBook = ttk.Notebook(self.oWin)
@@ -752,17 +896,17 @@ class Application(ThemedTk):
         audioBox = ttk.Checkbutton(optsFrm, variable=audio, command=update_opts, text=" - Extract audio")
         resolFrm = ttk.Frame(optsFrm)
         resolLbl = ttk.Label(resolFrm, text=" - Max resolution")
-        resolBox = ttk.Spinbox(resolFrm, values=[480, 720, 1080, 1440, 2160], command=update_opts)
+        resolBox = ttk.Spinbox(resolFrm, values=RESOLUTION_VALUES, command=update_opts)
         resolBox.set(self.appConfig['opts']['resolution'])
 
         videoFormat = StringVar(self.oWin, value=self.appConfig['opts']['video_format'])
         videoFormatFrm = ttk.Frame(optsFrm)
         videoFormatLbl = ttk.Label(videoFormatFrm, text=" - Preferred video extract format")
-        videoFormatBox = ttk.OptionMenu(videoFormatFrm, videoFormat, videoFormat.get(), "best", "mp4", "mkv", "mov", "webm", command=update_opts)
+        videoFormatBox = ttk.OptionMenu(videoFormatFrm, videoFormat, videoFormat.get(), *VIDEO_FORMATS, command=update_opts)
         audioFormat = StringVar(self.oWin, value=self.appConfig['opts']['audio_format'])
         audioFormatFrm = ttk.Frame(optsFrm)
         audioFormatLbl = ttk.Label(audioFormatFrm, text=" - Preferred audio extract format")
-        audioFormatBox = ttk.OptionMenu(audioFormatFrm, audioFormat, audioFormat.get(), "best", "mp3", "m4a", "aac", "opus", command=update_opts)
+        audioFormatBox = ttk.OptionMenu(audioFormatFrm, audioFormat, audioFormat.get(), *AUDIO_FORMATS, command=update_opts)
 
         strictFormat = BooleanVar(self.oWin, value=self.appConfig['opts']['strict_format'])
         strictFormatBox = ttk.Checkbutton(optsFrm, variable=strictFormat, command=update_opts, text=" - Selected format only")
@@ -789,10 +933,20 @@ class Application(ThemedTk):
         formatLbl = ttk.Label(formatFrm, text="Format selection string (empty=default): ")
         formatBox = ttk.Entry(formatFrm, textvariable=format)
         format.set(self.appConfig['opts']['format_string'])
+
+        output = StringVar(self.oWin, value=self.appConfig['opts']['output_template'])
+        outputFrm = ttk.Frame(advancedFrm)
+        outputLbl = ttk.Label(formatFrm, text="Output template (empty=default): ")
+        outputBox = ttk.Entry(formatFrm, textvariable=format)
+        output.set(self.appConfig['opts']['output_template'])
+        
         saveBtn = ttk.Button(advancedFrm, command=update_opts, text="Save options")
-        formatFrm.grid(row=0, column=0, sticky=NW)
+        formatFrm.grid(row=0, column=0, sticky=NW, columnspan=3)
         formatLbl.grid(row=0, column=0)
-        formatBox.grid(row=0, column=1)
+        formatBox.grid(row=0, column=1, columnspan=2)
+        outputFrm.grid(row=1, column=0, sticky=NW, columnspan=3)
+        outputLbl.grid(row=1, column=0)
+        outputBox.grid(row=1, column=1, columnspan=2)
         ttk.Label(advancedFrm, text="WARNING: Altering these options may affect the operation of other options and preferences!", foreground="red").grid(row=2, column=0, sticky=NW)
         ttk.Label(advancedFrm, text="For help with options, visit the help and instructions section of the app.").grid(row=3, column=0, sticky=NW)
         saveBtn.grid(column=0, row=6, sticky=S)
@@ -896,11 +1050,11 @@ class Application(ThemedTk):
         disStatBox.grid(column=0, row=3, sticky=NW)
         prefBook.add(advFrm, text="Advanced", underline=0)
     def bug(self):
-        ans=messagebox.askyesnocancel("Report via email?", "Would you like to report a bug by email.\nYes: report by email\nNo: report on github", parent=self)
-        if ans==True:
+        ans=messagebox.askyesnocancel("Report via Github?", "Would you like to report the bug online via Github.\nYes: report by Github\nNo: report via email", parent=self)
+        if ans==False:
             self.link("mailto:16JohnA28@gmail.com")
             self.log_debug("Email report.")
-        elif ans==False:
+        elif ans==True:
             self.link("https://github.com/MrTransparentBox/ytdl-gui/issues/new")
             self.log_debug("Github report.")
         else:
@@ -960,11 +1114,26 @@ class Application(ThemedTk):
         self.write_config()
 
 
-appVersion = "2023.07.03.f2"
+appVersion = "2023.09.12.f1"
 
 notes = f"""Youtube-dl GUI v{appVersion}
-Minor:
- - Fixed spotify playlist error"""
+New features:
+ - Enabled spotify playlists longer than 100 tracks
+ - Added 'Clear archive' option in tool menu to allow downloaded items to be overwritten
+ - List time function can now scan audio files as well
+ - List time function is now multithreaded
+ - Enabled .wav support
+ - Advanced options now has an output template option
+Minor additions:
+ - Added additional help
+ - Added info messagebox to inform user of what folder to select when app is first opened
+Changes:
+ - Audio downloads now only download audio track instead of postprocessing the video
+ - Altered some messages
+ - Changed default output template
+ - Improved default format selection to use custom algorithm.
+Fixes:
+ - List time function fixed"""
 def main(args: argparse.Namespace):
     if args.notes:
         print(notes)

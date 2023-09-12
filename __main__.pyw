@@ -1,4 +1,3 @@
-#!/usr/bin/env
 import argparse
 import DownloaderGUI, sys
 from tkinter import messagebox

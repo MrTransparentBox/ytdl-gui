@@ -22,24 +22,25 @@ class StderrRedirect(object):
             messagebox.showwarning("Warning", s, parent=self.master)
         elif self.msgbox and "error" in s.lower():
             messagebox.showerror("Error", s, parent=self.master)
+            self.old_stderr.write(s)
         elif self.msgbox:
             messagebox.showinfo("Issue", s, parent=self.master)
         else:
             try:
                 self.text_box.config(state=NORMAL)
                 # s2 = s.encode("ascii", 'ignore')
-                s2 = s
+                self.old_stderr.write(s)  
                 if s.startswith("\r"):
                     self.text_box.delete("end-1c linestart", "end")
-                    self.text_box.insert(END, f"\n{s2}")
+                    self.text_box.insert(END, f"\n{s}")
                 else:
-                    self.text_box.insert(END, s2)
+                    self.text_box.insert(END, s)
                 self.text_box.see(END)
                 self.text_box.config(state=DISABLED)
             except (TclError, RuntimeError) as e:
                 if "main thread is not in main loop" in str(e):
                     sys.exit(e)
-                self.old_stderr.write(f"OLD: '{s2}'\n")
+                self.old_stderr.write(s)
                 if self.open: self.close()
     def flush(self):
         pass
@@ -75,18 +76,17 @@ class StdoutRedirect(object):
         try:
             self.text_box.config(state=NORMAL)
             # s2 = s.encode('ascii', 'ignore')
-            s2 = s
-            if "error" in s2.lower():
-                messagebox.showerror("Error", s2)
+            if "error" in s.lower():
+                messagebox.showerror("Error", s)
             if s.startswith("\r"):
                 self.text_box.delete("end-1c linestart", "end")
-                self.text_box.insert(END, f"\n{s2}")
+                self.text_box.insert(END, f"\n{s}")
             else:
-                self.text_box.insert(END, s2)
+                self.text_box.insert(END, s)
             self.text_box.see(END)
             self.text_box.config(state=DISABLED)
         except TclError:
-            self.old_stdout.write(f"OLD: '{s2}'\n")
+            self.old_stdout.write(s)
             if self.open: self.close()
     def flush(self):
         pass

@@ -4,7 +4,7 @@ from tkinter import ttk, messagebox, Text, StringVar, font, Toplevel
 # from DownloaderGUI import Application 
 from .Redirects import StdoutRedirect, StderrRedirect
 class OutWin(Toplevel):
-    def __init__(self, master, mode: str, title="New window", geometry: str = "1080x600", block=True, setGrab=True, deleteOnClose=1):
+    def __init__(self, master, mode: str, title="New window", geometry: str = "1080x600", block=True, setGrab=True, deleteOnClose=1, beginTask=True):
         Toplevel.__init__(self, master)
         self.config(bg=master.backgrounds[master.appConfig['prefs']['theme']])
         self.master = master
@@ -29,6 +29,8 @@ class OutWin(Toplevel):
             self.progress.grid(column=0, row=0, padx=3, sticky=W)
             self.stat=StringVar(self.yt_frm, value="0MiB/0MiB @ 0MiB/s")
             ttk.Label(self.yt_frm, textvariable=self.stat, font=font.Font(size=14)).grid(column=1, row=0, padx=3)
+            self.info = StringVar(self.yt_frm, value="0 / 0 Completed")
+            ttk.Label(self.yt_frm, textvariable=self.info, font = font.Font(size=14)).grid(column=0, row=1, sticky=W)
             self.percent=StringVar(self.yt_frm, value=f"{self.progress['value']*100}%")
             ttk.Label(self.yt_frm, font=font.Font(size=10), textvariable=self.percent).grid(column=0, row=0)
             self.yt_frm.pack(side=TOP, pady=7.5)
@@ -38,7 +40,7 @@ class OutWin(Toplevel):
         else:
             print(f"mode '{self.mode}' incorrect")
         
-        self.task()
+        if beginTask: self.task()
         # self.btnStart.pack(side=BOTTOM)
         self.textFrm.pack(side=TOP, expand=True, fill=BOTH)
         self.yScroll.pack(fill=Y, side=RIGHT)
@@ -53,7 +55,8 @@ class OutWin(Toplevel):
             messagebox.showerror("Cannot close", "Unable to close window while download is in progress.", parent=self)
             return
         elif self.master.running and self.delClose == 1:
-            messagebox.showwarning("Download not stopped...", "Download logs continue in the console.", parent=self)
+            # messagebox.showwarning("Download not stopped...", "Download logs continue in the console.", parent=self)
+            pass
         self.grab_release()
         if self.delClose == 1: # Do delete
             self.destroy()
