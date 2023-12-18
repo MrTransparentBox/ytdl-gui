@@ -1,7 +1,6 @@
 wheel
 moviepy
 ttkthemes
-youtube-dl
 yt-dlp
 pyinstaller
 validators
