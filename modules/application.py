@@ -525,17 +525,15 @@ class Application(ThemedTk):
         self.write_config()
 
 
-APP_VERSION = "2023.12.18.a1"
+APP_VERSION = "2023.12.28.f1"
 notes = f"""Youtube-dl GUI v{APP_VERSION}
 New features:
  - Introduced loading of extensions, which can provide custom functionality
 Changes:
  - Made spotify support an optional extension
  - Re-enabled console window
- - Used ffmpeg binary built into imageio_ffmpeg
-     - Removed bundled ffmpeg folder
- - Removed dist folder
  - Improved debug output format
+ - Various bug fixes
 """
 
 
