@@ -214,7 +214,7 @@ class Downloader:
                         elif d["total_bytes_estimate"] != 0:
                             self.download_window.progress["value"] = d["downloaded_bytes"] / d["total_bytes_estimate"]
                     except (KeyError, ZeroDivisionError) as e:
-                        log_debug(f"WARNING: Progess bar unavailable; {e}\n")
+                        pass
                     else:
                         self.download_window.percent.set(d["_percent_str"])
                     self.download_window.stat_string.set(str(d["_default_template"]))
@@ -234,6 +234,10 @@ class Downloader:
         archive_path = relative_data("archive.txt")
         if not os.path.exists(archive_path):
             open(archive_path, "w", encoding="utf-8").close()  # Create archive if it doesn't exist
+
+        can_embed = (
+            not self.download_options["audio"] and self.download_options["video_format"] in THUMBNAIL_VIDEO_FORMATS
+        ) or (self.download_options["audio"] and self.download_options["audio_format"] in THUMBNAIL_AUDIO_FORMATS)
         opts = {
             "default_search": "auto",
             "outtmpl": f"{self.output_directory}\\%(title)s-%(uploader)s-%(upload_date)s.%(ext)s",
@@ -243,8 +247,8 @@ class Downloader:
                 "imageio_ffmpeg\\binaries\\ffmpeg-win64-v4.2.2.exe", unbundled_prefix=".venv\\Lib\\site-packages"
             ),
             "cookiefile": relative_path("Logs\\cookies.txt", True),
-            # "writethumbnail": self.download_options["thumbnail"],
-            "writethumbnail": False,
+            "writethumbnail": self.download_options["thumbnail"],
+            # "writethumbnail": False,
             "writesubtitles": self.download_options["subtitles"],
             "writeautomaticsub": self.download_options["subtitles"],
             "writedescription": self.download_options["description"],
@@ -278,31 +282,16 @@ class Downloader:
             opts["postprocessors"].append({"key": "FFmpegMetadata"})
             log_debug("Added metadata postprocess")
         if self.download_options["thumbnail"]:
-            if self.download_options["audio"] and self.download_options["audio_format"] in THUMBNAIL_AUDIO_FORMATS:
+            if can_embed:
                 opts["postprocessors"].append(
                     {
                         "key": "EmbedThumbnail",
                         "already_have_thumbnail": False,
-                        "atomic_path": relative_path("AtomicParsley-win32-0.9.0\\AtomicParsley.exe"),
                     }
                 )
                 log_debug("Added thumbnail postprocess")
-            elif (
-                not self.download_options["audio"] and self.download_options["video_format"] in THUMBNAIL_VIDEO_FORMATS
-            ):
-                opts["postprocessors"].append(
-                    {
-                        "key": "EmbedThumbnail",
-                        "already_have_thumbnail": False,
-                        "atomic_path": relative_path("AtomicParsley-win32-0.9.0\\AtomicParsley.exe"),
-                    }
-                )
-                log_debug("Added thumbnail postprocess")
-
             else:
-                print(
-                    "The selected format doesn't support embedding thumbnails. The images will be left in the download directory."
-                )
+                print("Chosen format doesn't support thumbnail embedding, leaving file on disk")
         if self.download_options["subtitles"]:
             opts["postprocessors"].append({"key": "FFmpegEmbedSubtitle"})
         if not self.master.app_config["prefs"]["disable_stats"]:
@@ -374,8 +363,8 @@ class DownloadWindow(OutputWindow):
     def __init__(
         self,
         master: Misc | None = None,
-        download_function: Callable = None,
         title="New window",
+        download_function: Callable = None,
         block=True,
         *,
         background: str | None = None,

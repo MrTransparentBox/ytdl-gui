@@ -525,15 +525,15 @@ class Application(ThemedTk):
         self.write_config()
 
 
-APP_VERSION = "2023.12.28.f1"
+APP_VERSION = "2024.01.23.f1"
 notes = f"""Youtube-dl GUI v{APP_VERSION}
-New features:
- - Introduced loading of extensions, which can provide custom functionality
 Changes:
- - Made spotify support an optional extension
- - Re-enabled console window
- - Improved debug output format
- - Various bug fixes
+ - Thumbnail downloaded even if format doesn't support embedding
+Fixes:
+- Fixed download output window title
+- Removed atomic parsley usage in favour of mutagen.
+    - Binary still bundled and available for usage if added to PATH
+- Rebundled missing ffprobe
 """
 
 
